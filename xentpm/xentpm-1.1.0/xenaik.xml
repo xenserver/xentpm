@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xentxt:xentxtdata xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xentxt="http://www.XenTxt.org/XenTxtGetAIK" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.XenTxt.org/XenTxtGetAIK xentxt.xsd ">
+  <xentxt:xencert>MA==</xentxt:xencert>
+  <xentxt:xenpubkey>MA==</xentxt:xenpubkey>
+  <xentxt:certtype>true</xentxt:certtype>
+  <xentxt:aikpub>MA==</xentxt:aikpub>
+  <xentxt:aiktcpa>MA==</xentxt:aiktcpa>
+</xentxt:xentxtdata>
