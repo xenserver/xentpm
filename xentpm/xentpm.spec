@@ -25,6 +25,15 @@ make CPPFLAGS=-I%{trousers_dir}/include LDFLAGS=-L%{trousers_dir}/lib
 
 %install
 echo Starting install section
+make install prefix=%{_builddir}
+
+rm -rf %{buildroot}
+mkdir -p %{buildroot}/opt/tpm
+mkdir -p %{buildroot}/etc/xapi.d/plugins
+
+cp %{_builddir}/opt/tpm/* %{buildroot}/opt/tpm/
+cp %{_builddir}/etc/xapi.d/plugins/* %{buildroot}/etc/xapi.d/plugins/
+
 
 %post -p /sbin/ldconfig
 
@@ -35,6 +44,9 @@ echo Cleaning buildroot:%{buildroot}
 rm -rf %{buildroot}
 
 %files
+/opt/tpm/*
+/etc/xapi.d/plugins/*
+
 %defattr(-,root,root,-)
 
 %changelog
