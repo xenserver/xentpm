@@ -4,10 +4,9 @@
 #!/bin/bash
 
 #create a tpm agent dir
-ROOT=$1
-LOG= $ROOT"/tmp/xen_tpm_agent.log"
-BASE= $ROOT"/opt/tpm"
-PLUGIN= $ROOT"/etc/xapi.d/plugins/"
+LOG="/tmp/xen_tpm_agent.log"
+BASE="/opt/tpm"
+PLUGIN="/etc/xapi.d/plugins/"
 
 if  [ -f $LOG ];
     then
@@ -24,26 +23,17 @@ if ! [ -d $BASE ];
 fi 
 
 ## create public key
-openssl rsa -in /etc/ssh/ssh_host_rsa_key -pubout > $BASE/xen.pub
-if [ $? -ne 0 ];
-    then
-    echo  "Setup:Error Creating Xen server public key" | tee -a $LOG 
-    exit
-    else
-    echo  "Setup: Xen server public key created in PAM" | tee -a $LOG 
-fi
+#openssl rsa -in /etc/ssh/ssh_host_rsa_key -pubout > $BASE/xen.pub
+#if [ $? -ne 0 ];
+#    then
+#    echo  "Setup:Error Creating Xen server public key" | tee -a $LOG 
+#    exit
+#    else
+#    echo  "Setup: Xen server public key created in PAM" | tee -a $LOG 
+#fi
+#
 
-
-## call the mkcert and aikpublish
-
-./mkcert
-if [ $? -ne 0 ];
-    then
-    echo  "Setup:Error Creating TPM Certificate" | tee -a $LOG
-    exit
-fi
-
-./aikpublish
+./generateAik
 
 if [ $? -ne 0 ];
     then
@@ -57,8 +47,9 @@ echo  "Setup: Success" | tee -a $LOG
 cp -f xenaik.xml /opt/tpm/
 
 ## copy all executables in /opt/tpm
-cp -f mkcert      $BASE
-cp -f aikpublish  $BASE
+#cp -f mkcert      $BASE
+#cp -f aikpublish  $BASE
+cp -f generateAik  $BASE
 cp -f aikrespond  $BASE
 cp -f xenquote    $BASE
 
