@@ -36,7 +36,7 @@ cp %{_builddir}/etc/xapi.d/plugins/* %{buildroot}/etc/xapi.d/plugins/
 
 
 %post -p /sbin/ldconfig
-
+/opt/tpm/generateAik
 %postun -p /sbin/ldconfig
 
 %clean
