@@ -19,7 +19,7 @@ xenquote: xenquote.o
 	gcc -o $@ $^ $(CFLAGS) $(LIBS)
 
 clean:
-	rm -rf *.o generateAik aikchallange xenquote
+	rm -rf *.o generateAik aikrespond xenquote
 
 install:
 	[ -d $(BASE) ] || mkdir -p $(BASE) 
