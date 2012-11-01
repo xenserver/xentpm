@@ -102,12 +102,7 @@ main (int ac, char **av)
 	log_msg (__FILE__, __LINE__," Request for Quote Generation!\n");
 
 	while (ac > 3) {
-		if (0 == strcmp(av[1], "-p")) {
-			pass = av[2];
-			for (i=3; i<ac; i++)
-				av[i-2] = av[i];
-			ac -= 2;
-		} else if (0 == strcmp(av[1], "-c")) {
+		if (0 == strcmp(av[1], "-c")) {
 			chalfile = av[2];
 			for (i=3; i<ac; i++)
 				av[i-2] = av[i];
@@ -117,7 +112,7 @@ main (int ac, char **av)
 	}
 
 	if (ac < 2) {
-		log_msg (__FILE__,__LINE__,"Usage: %s [-p password] [-c challengefile] aikblobfile outquotefile\n", av[0]);
+		log_msg (__FILE__,__LINE__,"Usage: %s [-c challengefile] aikblobfile outquotefile\n", av[0]);
 		exit (1);
 	}
 

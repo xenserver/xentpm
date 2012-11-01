@@ -35,8 +35,7 @@ cp %{_builddir}/opt/tpm/* %{buildroot}/opt/tpm/
 cp %{_builddir}/etc/xapi.d/plugins/* %{buildroot}/etc/xapi.d/plugins/
 
 
-%post -p /sbin/ldconfig
-/opt/tpm/generateAik
+%post -p /opt/tpm/generateAik
 %postun -p /sbin/ldconfig
 
 %clean
@@ -44,10 +43,10 @@ echo Cleaning buildroot:%{buildroot}
 rm -rf %{buildroot}
 
 %files
+%defattr(-,root,root,-)
 /opt/tpm/*
 /etc/xapi.d/plugins/*
 
-%defattr(-,root,root,-)
 
 %changelog
 * Tue Mar 14 2012 Nehal Bandi
