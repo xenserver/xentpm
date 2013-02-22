@@ -35,7 +35,7 @@ cp %{_builddir}/opt/tpm/* %{buildroot}/opt/tpm/
 cp %{_builddir}/etc/xapi.d/plugins/* %{buildroot}/etc/xapi.d/plugins/
 
 
-%post -p /opt/tpm/generateAik
+%post -p /sbin/ldconfig
 %postun -p /sbin/ldconfig
 
 %clean
