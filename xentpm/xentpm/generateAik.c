@@ -40,12 +40,12 @@
 
 #define CKERR	if (result != TSS_SUCCESS) goto error
 
-#define AIK_PEM_PUB "/opt/tpm/aik_pem.pub"
-#define EK_PEM_PUB "/opt/tpm/ek_pem.pub"
-#define AIK_TCPA_PUB "/opt/tpm/aik_tcpa.pub"
-#define AIK_TPM_BLOB "/opt/tpm/aiktpmblob"
+#define AIK_PEM_PUB "/opt/xensource/tpm/aik_pem.pub"
+#define EK_PEM_PUB "/opt/xensource/tpm/ek_pem.pub"
+#define AIK_TCPA_PUB "/opt/xensource/tpm/aik_tcpa.pub"
+#define AIK_TPM_BLOB "/opt/xensource/tpm/aiktpmblob"
 #ifndef TPMCERTFILE
-#define TPMCERTFILE "/opt/tpm/tpm.cert"
+#define TPMCERTFILE "/opt/xensource/tpm/tpm.cert"
 #endif
 
 #define LOG_FILE  "/tmp/xen_tpm_agent.log"

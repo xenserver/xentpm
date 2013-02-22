@@ -5,7 +5,7 @@ import XenAPIPlugin
 import sys
 import base64
 import subprocess
-path = "/opt/tpm/"
+path = "/opt/xensource/tpm/"
 #Usage: %s  [-c noncefile ] aiktpmblob quotefile\n";
 cfile   = path + "nonce"
 aikblob = path + "aiktpmblob"

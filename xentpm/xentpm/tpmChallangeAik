@@ -5,7 +5,7 @@ import XenAPIPlugin
 import sys
 import base64
 import subprocess
-path = "/opt/tpm/"
+path = "/opt/xensource/tpm/"
 #Usage: ./aikrespond [-p password] aikblobfile challengefile outresponsefile
 prg  =  path + "aikrespond"
 cfile = path + "challange"

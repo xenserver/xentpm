@@ -5,7 +5,7 @@
 
 #create a tpm agent dir
 LOG="/tmp/xen_tpm_agent.log"
-BASE="/opt/tpm"
+BASE="/opt/xensource/tpm"
 PLUGIN="/etc/xapi.d/plugins/"
 
 if  [ -f $LOG ];
@@ -19,7 +19,7 @@ if ! [ -d $BASE ];
     echo `date` >> $LOG 
     echo "Xen TPM agent setup starting" >> $LOG 
     else
-    rm -rf /opt/tpm/*
+    rm -rf /opt/xensource/tpm/*
 fi 
 
 ## create public key
@@ -44,9 +44,9 @@ fi
 echo  "Setup: Success" | tee -a $LOG 
 
 ## copy schema file
-cp -f xenaik.xml /opt/tpm/
+cp -f xenaik.xml /opt/xensource/tpm/
 
-## copy all executables in /opt/tpm
+## copy all executables in /opt/xensource/tpm
 #cp -f mkcert      $BASE
 #cp -f aikpublish  $BASE
 cp -f generateAik  $BASE

@@ -7,7 +7,7 @@ import urllib2
 import base64
 from xml.dom.minidom import parse
 
-path 	= "/opt/tpm/"
+path 	= "/opt/xensource/tpm/"
 tpmcert     = path + "tpm.cert"
 xmlfile     = path + "xenaik.xml"
 aiktcpa     = path + "aik_tcpa.pub"

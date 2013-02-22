@@ -4,7 +4,7 @@
 #create a tpm agent dir
 ROOT=$1
 LOG= $ROOT"/tmp/xen_tpm_agent.log"
-BASE= $ROOT"/opt/tpm"
+BASE= $ROOT"/opt/xensource/tpm"
 PLUGIN= $ROOT"/etc/xapi.d/plugins/"
 
 if ! [ -d $BASE ];
@@ -20,7 +20,7 @@ fi
 ## copy schema file
 cp -f xenaik.xml $BASE
 
-## copy all executables in /opt/tpm
+## copy all executables in /opt/xensource/tpm
 cp -f mkcert      $BASE
 cp -f aikpublish  $BASE
 cp -f aikrespond  $BASE

@@ -28,10 +28,10 @@ echo Starting install section
 make install prefix=%{_builddir}
 
 rm -rf %{buildroot}
-mkdir -p %{buildroot}/opt/tpm
+mkdir -p %{buildroot}/opt/xensource/tpm
 mkdir -p %{buildroot}/etc/xapi.d/plugins
 
-cp %{_builddir}/opt/tpm/* %{buildroot}/opt/tpm/
+cp %{_builddir}/opt/xensource/tpm/* %{buildroot}/opt/xensource/tpm/
 cp %{_builddir}/etc/xapi.d/plugins/* %{buildroot}/etc/xapi.d/plugins/
 
 
@@ -44,7 +44,7 @@ rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root,-)
-/opt/tpm/*
+/opt/xensource/tpm/*
 /etc/xapi.d/plugins/*
 
 
