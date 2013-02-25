@@ -5,23 +5,40 @@ import XenAPIPlugin
 import sys
 import urllib2
 import base64
+import subprocess
 from xml.dom.minidom import parse
 
 path 	= "/opt/xensource/tpm/"
-tpmcert     = path + "tpm.cert"
+prg  =  path + "xentpm"
 xmlfile     = path + "xenaik.xml"
 aiktcpa     = path + "aik_tcpa.pub"
-ekpub      = path +  "ek_pem.pub"
 aikpub      = path + "aik_pem.pub"
 
 tempxml = "/tmp/out.xml"
 
-error_strings =  { tpmcert:   'Error in Reading TPM certificate',\
-                  'unknown': 'Error happend in AIK request ',\
+error_strings =  { 'unknown': 'Error happend in AIK request ',\
                    xmlfile:  'Error in XML Schema file',\
                    aiktcpa:  'Error in Reading AIK TCPA Pub Key',\
-                   aikpub:   'Error in Reading XenServer Public Key',\
-                   ekpub:   'Error in Reading AIK Public Key' }
+                   aikpub:   'Error in Reading XenServer Public Key' }
+
+def doexec(args, inputtext=None):
+    """Execute a subprocess, then return its return code, stdout and stderr"""
+    proc = subprocess.Popen(args,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,close_fds=True)
+    (stdout,stderr) = proc.communicate(inputtext)
+    rc = proc.returncode
+    return (rc,stdout,stderr)
+
+def get_endorsementkey():
+    (rc,stdout,stderr) = doexec([prg, "--get_ekey"])
+    if rc != 0:
+        raise Exception("Error: " + rc + "getting the endorsement key")
+    return stdout
+
+def get_tpmcert():
+    (rc,stdout,stderr) = doexec([prg, "--get_ekcert"])
+    if rc != 0:
+        raise Exception("Error: " + rc + "getting the TPM certificate")
+    return stdout
 
 error   = 'unknown'
 ##Create an XML with
@@ -38,21 +55,11 @@ def gen_out_xml():
     except:
         error = xmlfile
 	raise
-    self = True
     try:
-	f = open (tpmcert)
-        tpmcert_node.firstChild.nodeValue = base64.b64encode(f.read())
-        f.close()
-        self = False;
+        tpmcert_node.firstChild.nodeValue = get_tpmcert()
     except:
         tpmcert_node.firstChild.nodeValue = ''
-    try:
-        f = open(ekpub)
-        ekpub_node.firstChild.nodeValue =  base64.b64encode(f.read())
-        f.close()
-    except:
-        error = ekpub
-	raise
+    ekpub_node.firstChild.nodeValue = get_endorsementkey()
     try:
         f = open(aiktcpa)
         aiktcp_node.firstChild.nodeValue = base64.b64encode(f.read())

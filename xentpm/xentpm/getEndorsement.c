@@ -214,14 +214,6 @@ int get_ekcert()
         ekOffset += blobLen;
     }
 
-    //BIO *bio, *b64;
-    //b64 = BIO_new(BIO_f_base64());
-    //bio = BIO_new_fp(stdout, BIO_NOCLOSE);
-    //bio = BIO_push(b64, bio);
-    //BIO_write(bio, ekbuf, ekbufLen);
-    //BIO_flush(bio);
-    //BIO_free_all(bio);
-
     BIO *bmem, *b64;
     BUF_MEM *bptr;
     b64 = BIO_new(BIO_f_base64());
@@ -237,9 +229,9 @@ int get_ekcert()
     printf(buff);
     free(buff);
 
-    result = Tspi_Context_CloseObject(hContext, hNV);CKERR;
     result = Tspi_Context_Close(hContext);CKERR;
     return 0;
+
 error:
     log_msg(__FILE__,__LINE__,"Failure, error code: %s\n", Trspi_Error_String(result));
     return 1;
