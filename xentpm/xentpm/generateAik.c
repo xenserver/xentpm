@@ -28,62 +28,13 @@
  * THE SOFTWARE.
  */
 
-
-#include <stdio.h>
-#include <string.h>
-#include <memory.h>
-#include <trousers/tss.h>
-#include <openssl/x509.h>
-#include <openssl/pem.h>
-#include <trousers/trousers.h>
-#define OWNER_SECRET	"xenroot"
+#include "xentpm.h"
 
 #define CKERR if (result != TSS_SUCCESS) { log_msg(__FILE__,__LINE__,"Failure, error code: 0x%x %s \n", result,Trspi_Error_String(result)); return 1; }
 
 #define AIK_PEM_PUB "/opt/xensource/tpm/aik_pem.pub"
-#define EK_PEM_PUB "/opt/xensource/tpm/ek_pem.pub"
 #define AIK_TCPA_PUB "/opt/xensource/tpm/aik_tcpa.pub"
 #define AIK_TPM_BLOB "/opt/xensource/tpm/aiktpmblob"
-#ifndef TPMCERTFILE
-#define TPMCERTFILE "/opt/xensource/tpm/tpm.cert"
-#endif
-
-#define LOG_FILE  "/tmp/xen_tpm_agent.log"
-
-#define BSIZE	128
-
-/* Definitions from section 7 of
- * TCG PC Client Specific Implementation Specification
- * For Conventional BIOS
- */
-#define TCG_TAG_PCCLIENT_STORED_CERT		0x1001
-#define TCG_TAG_PCCLIENT_FULL_CERT		0x1002
-#define TCG_TAG_PCCLIENT_PART_SMALL_CERT	0x1003
-#define TCG_FULL_CERT				0
-#define TCG_PARTIAL_SMALL_CERT			1
-
-
-
-void log_msg(char* file,int line,char *msg, ...);
-void exit_status(int status);
-int generate_aik();
-int read_tpm_ekcert(char*);
-int read_tpm_cert();
-FILE *log_filp = NULL;
-
-int
-main (int ac, char **av)
-{
-    log_filp = fopen(LOG_FILE,"a+");
-    
-    if (!log_filp) {
-        exit_status(1);
-    }
-    
-    /* Generate AIK for the TPM*/
-    generate_aik();
-
-}
 
 int generate_aik() 
 {
@@ -96,7 +47,6 @@ int generate_aik()
     TSS_HPOLICY	hSrkPolicy;
     TSS_HPOLICY	hAIKPolicy;
     TSS_UUID SRK_UUID = TSS_UUID_SRK;
-    //BYTE srkSecret[] = TSS_WELL_KNOWN_SECRET;
     BYTE n[2048/8];
     FILE *f_out;
     char *pass = NULL;
@@ -123,7 +73,7 @@ int generate_aik()
     result = Tspi_Policy_SetSecret (hTPMPolicy, TSS_SECRET_MODE_PLAIN,
 			strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); CKERR;
 
-    /* Create dummy PCA key */
+    // Create dummy PCA key 
     result = Tspi_Context_CreateObject(hContext,
                                        TSS_OBJECT_TYPE_RSAKEY,
                                        TSS_KEY_TYPE_LEGACY|TSS_KEY_SIZE_2048,
@@ -147,14 +97,14 @@ int generate_aik()
 				strlen(pass)+1, (BYTE*)pass); CKERR;
     }
 
-    /* Generate new AIK */
+    // Generate new AIK */
     result = Tspi_TPM_CollateIdentityRequest(hTPM, hSRK, hPCA, 0, "",
 						 hAIK, TSS_ALG_AES,
 						 &blobLen,
 						 &blob); CKERR;
     Tspi_Context_FreeMemory (hContext, blob);
 
-    /* Output file with AIK pub key and certs, preceded by 4-byte lengths */
+    // Output file with AIK pub key and certs, preceded by 4-byte lengths 
     result = Tspi_GetAttribData (hAIK, TSS_TSPATTRIB_RSAKEY_INFO,
 		TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, &blobLen, &blob); CKERR;
 	
@@ -167,14 +117,13 @@ int generate_aik()
     aikRsa->e = BN_bin2bn(e, e_size, NULL);
 
     
-    /* Test if the reverse works 
-     * and the ans is no it does not ==
-     * That is why we need to pass the entire blob
-     * char buf[2048] ;
-     * int len ;
-     * len = BN_bn2bin(aikRsa->n,buf);
-     * int res = memcmp(blob,buf,blobLen);
-    */
+    // Test if the reverse works 
+    // and the ans is no it does not ==
+    // That is why we need to pass the entire blob
+    // char buf[2048] ;
+    // int len ;
+    // len = BN_bn2bin(aikRsa->n,buf);
+    // int res = memcmp(blob,buf,blobLen);
 
     if ((aikPk = EVP_PKEY_new()) == NULL){
         RSA_free(aikRsa);
@@ -198,10 +147,9 @@ int generate_aik()
     fclose(f_out);
     RSA_free(aikRsa);
     
-    /*The purpose of this call is to get TCPA_PUBKEY
-     *structure of the AIK 
-     * this is passed to user for create a challange
-     * */
+    // The purpose of this call is to get TCPA_PUBKEY
+    // structure of the AIK 
+    // this is passed to user for create a challange
     result = Tspi_GetAttribData (hAIK, TSS_TSPATTRIB_KEY_BLOB,
 		TSS_TSPATTRIB_KEYBLOB_PUBLIC_KEY, &blobLen, &blob); CKERR;
 
@@ -216,10 +164,9 @@ int generate_aik()
     }
     fclose (f_out);
 
-    /* Output file with AIK blob for TPM future Use */
-    /* The output of this call is TPM_KEY(12) struct
-     * Used for loading an AIK in TPM
-     * */
+    // Output file with AIK blob for TPM future Use */
+    // The output of this call is TPM_KEY(12) struct
+    // Used for loading an AIK in TPM
     result = Tspi_GetAttribData (hAIK, TSS_TSPATTRIB_KEY_BLOB,
 		TSS_TSPATTRIB_KEYBLOB_BLOB, &blobLen, &blob); CKERR;
 	
@@ -237,27 +184,4 @@ int generate_aik()
     log_msg(__FILE__,__LINE__,"Created an AIK.pub and TPMAIK\n");
     return 0;
 }
-
-void log_msg(char * file, int line, char *msg, ...)
-{
-    va_list argp;
-    time_t t;  
-    char buf[strlen(ctime(&t))+ 1];  
-    time(&t);  
-    snprintf(buf,strlen(ctime(&t)),"%s ", ctime(&t));  
-    fprintf(log_filp, "%s ,%s, line %d: ",buf,file,line);
-            va_start(argp, msg);
-            vfprintf(log_filp, msg, argp);
-            va_end(argp);
-    fprintf(log_filp, "\n");
-}
-
-void exit_status(int status)
-{
-    if (log_filp) {
-        fflush(log_filp);
-        fclose(log_filp);
-    }
-    exit(status);
-}   
 

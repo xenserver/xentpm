@@ -21,6 +21,7 @@ main (int argc, char **argv)
         { "take_ownership", no_argument, 0, 0 },
         { "get_ekey", no_argument, 0, 0 },
         { "get_ekcert", no_argument, 0, 0 },
+        { "gen_aik", no_argument, 0, 0 },
         { 0, 0, 0, 0 }
     };
 
@@ -44,6 +45,10 @@ main (int argc, char **argv)
                 case 3:
                     return get_ekcert();
                     break;
+
+                case 4:
+                    return generate_aik();
+                    break;
             }
             break;
 
@@ -51,7 +56,7 @@ main (int argc, char **argv)
             if (argc > 1) {
                 printf("Unknown option %s\n", argv[1]);
             }
-            printf("Usage: xentpm --get_ekey | --get_ekcert\n"); 
+            printf("Usage: xentpm --tpm_owned | --take_ownership | --get_ekey | --get_ekcert | --gen_aik\n"); 
             break;
     }
 }
