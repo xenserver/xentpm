@@ -19,7 +19,7 @@ BuildRoot: %{_tmppath}/%{name}-buildroot
 
 
 %build
-make CPPFLAGS=-I%{trousers_dir}/include LDFLAGS=-L%{trousers_dir}/lib
+make 
 
 #%patch
 
