@@ -21,7 +21,9 @@ main (int argc, char **argv)
         { "take_ownership", no_argument, 0, 0 },
         { "get_ekey", no_argument, 0, 0 },
         { "get_ekcert", no_argument, 0, 0 },
-        { "gen_aik", no_argument, 0, 0 },
+        { "gen_aik", required_argument, 0, 0 },
+        { "get_aik_pem", required_argument, 0, 0 },
+        { "get_aik_tcpa", required_argument, 0, 0 },
         { 0, 0, 0, 0 }
     };
 
@@ -47,7 +49,15 @@ main (int argc, char **argv)
                     break;
 
                 case 4:
-                    return generate_aik();
+                    return generate_aik(optarg);
+                    break;
+
+                case 5:
+                    return get_aik_pem(optarg);
+                    break;
+
+                case 6:
+                    return get_aik_tcpa(optarg);
                     break;
             }
             break;
