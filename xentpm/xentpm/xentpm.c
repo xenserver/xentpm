@@ -2,12 +2,24 @@
 #define XENTPM_H_
 
 #include "xentpm.h"
-#include <getopt.h>
 
 FILE *log_filp = NULL;
 
+void
+Usage()
+{
+    printf("Usage: xentpm\n");
+    printf("           --tpm_owned |\n");
+    printf("           --take_ownership |\n");
+    printf("           --get_ekey |\n");
+    printf("           --get_ekcert |\n");
+    printf("           --gen_aik <aikblobfile>\n");
+    printf("           --get_aik_pem <aikblobfile>\n");
+    printf("           --get_aik_tcpa <aikblobfile>\n");
+}
+
 int
-main (int argc, char **argv)
+main(int argc, char **argv)
 {
     log_filp = fopen(LOG_FILE,"a+");
     
@@ -15,59 +27,41 @@ main (int argc, char **argv)
         exit_status(1);
     }
 
-    static struct option long_options[] =
-    {
-        { "tpm_owned", no_argument, 0, 0 },
-        { "take_ownership", no_argument, 0, 0 },
-        { "get_ekey", no_argument, 0, 0 },
-        { "get_ekcert", no_argument, 0, 0 },
-        { "gen_aik", required_argument, 0, 0 },
-        { "get_aik_pem", required_argument, 0, 0 },
-        { "get_aik_tcpa", required_argument, 0, 0 },
-        { 0, 0, 0, 0 }
-    };
+    if (argc < 2) {
+        Usage();
+        exit_status(1);
+    }
 
-    int option_index = 0;
-    int c = getopt_long(argc, argv, "01", long_options, &option_index);
-    switch (c) {
-        case 0:
-            switch (option_index) {
-                case 0:
-                    return tpm_owned();
-                    break;
-
-                case 1:
-                    return take_ownership();
-                    break;
-
-                case 2:
-                    return get_ek();
-                    break;
-
-                case 3:
-                    return get_ekcert();
-                    break;
-
-                case 4:
-                    return generate_aik(optarg);
-                    break;
-
-                case 5:
-                    return get_aik_pem(optarg);
-                    break;
-
-                case 6:
-                    return get_aik_tcpa(optarg);
-                    break;
-            }
-            break;
-
-        default:
-            if (argc > 1) {
-                printf("Unknown option %s\n", argv[1]);
-            }
-            printf("Usage: xentpm --tpm_owned | --take_ownership | --get_ekey | --get_ekcert | --gen_aik\n"); 
-            break;
+    if (!strcasecmp(argv[1], "--tpm_owned")) {
+        return tpm_owned();
+    } else if (!strcasecmp(argv[1], "--take_ownership")) {
+        return take_ownership();
+    } else if (!strcasecmp(argv[1], "--get_ekey")) {
+        return get_ek();
+    } else if (!strcasecmp(argv[1], "--get_ekcert")) {
+        return get_ekcert();
+    } else if (!strcasecmp(argv[1], "--gen_aik")) {
+        if (argc < 3) {
+            Usage();
+            exit_status(1);
+        }
+        return generate_aik(argv[2]);
+    } else if (!strcasecmp(argv[1], "--get_aik_pem")) {
+        if (argc < 3) {
+            Usage();
+            exit_status(1);
+        }
+        return get_aik_pem(argv[2]);
+    } else if (!strcasecmp(argv[1], "--get_aik_tcpa")) {
+        if (argc < 3) {
+            Usage();
+            exit_status(1);
+        }
+        return get_aik_pem(argv[2]);
+    } else {
+        printf("Unknown option %s\n", argv[1]);
+        Usage();
+        exit_status(1);
     }
 }
 
