@@ -47,6 +47,14 @@ int take_ownership()
     TSS_HPOLICY srkPolicy;
     TSS_FLAG fSrkAttrs;
 
+    //
+    // First check if the TPM is owned.  If it is not owned then xentpm needs to take ownership
+    //
+    if (tpm_owned()) {
+        // TPM is already owned so nothing to do.
+        return 0;
+    }
+
     log_msg(__FILE__,__LINE__,"Taking ownership of the TPM.\n");
 
     result = Tspi_Context_Create(&hContext);

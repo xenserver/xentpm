@@ -28,15 +28,10 @@ int get_ek()
     RSA *ekRsa;
     TSS_HPOLICY ekPolicy;
 
-    //
-    // First check if the TPM is owned.  If it is not owned then xentpm needs to take ownership
-    // 
-    if (!tpm_owned()) {
-        result = take_ownership();
-        if (result) {
-            log_msg(__FILE__,__LINE__,"Error 0x%X taking ownership of TPM.\n", result);
-            exit_status(result);
-        }
+    result = take_ownership();
+    if (result) {
+        log_msg(__FILE__,__LINE__,"Error 0x%X taking ownership of TPM.\n", result);
+        exit_status(result);
     }
 
     result = Tspi_Context_Create(&hContext);
@@ -133,15 +128,10 @@ int get_ekcert()
     UINT32 tag, certType;
     int result;
 
-    //
-    // First check if the TPM is owned.  If it is not owned then xentpm needs to take ownership
-    // 
-    if (!tpm_owned()) {
-        result = take_ownership();
-        if (result) {
-            log_msg(__FILE__,__LINE__,"Error 0x%X taking ownership of TPM.\n", result);
-            exit_status(result);
-        }
+    result = take_ownership();
+    if (result) {
+        log_msg(__FILE__,__LINE__,"Error 0x%X taking ownership of TPM.\n", result);
+        exit_status(result);
     }
 
     result = Tspi_Context_Create(&hContext); CKERR;
