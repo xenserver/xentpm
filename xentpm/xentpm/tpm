@@ -9,11 +9,15 @@ import subprocess
 import os.path
 from xml.dom.minidom import parse
 
-path 	= "/opt/xensource/tpm/"
-prg  =  path + "xentpm"
-xmlfile     = path + "xenaik.xml"
-aikblob     = path + "aiktpmblob"
-tempxml = "/tmp/out.xml"
+path          = "/opt/xensource/tpm/"
+prg           = path + "xentpm"
+xmlfile       = path + "xenaik.xml"
+aikblob       = path + "aiktpmblob"
+tempxml       = "/tmp/out.xml"
+challengefile = path + "challenge"
+responsefile  = path + "response"
+noncefile     = path + "nonce"
+quotefile     = path + "outquote"
 
 def doexec(args, inputtext=None):
     """Execute a subprocess, then return its return code, stdout and stderr"""
@@ -22,34 +26,46 @@ def doexec(args, inputtext=None):
     rc = proc.returncode
     return (rc,stdout,stderr)
 
-def get_endorsementkey():
+def call_get_endorsementkey():
     (rc,stdout,stderr) = doexec([prg, "--get_ekey"])
     if rc != 0:
         raise Exception("Error: " + rc + "getting the endorsement key")
     return stdout
 
-def get_tpmcert():
+def call_get_tpmcert():
     (rc,stdout,stderr) = doexec([prg, "--get_ekcert"])
     if rc != 0:
         raise Exception("Error: " + rc + "getting the TPM certificate")
     return stdout
 
-def get_aik_pem():
+def call_get_aik_pem():
     (rc,stdout,stderr) = doexec([prg, "--get_aik_pem", aikblob])
     if rc != 0:
         raise Exception("Error: " + rc + "getting the AIK PEM")
     return stdout
 
-def get_aik_tcpa():
+def call_get_aik_tcpa():
     (rc,stdout,stderr) = doexec([prg, "--get_aik_tcpa", aikblob])
     if rc != 0:
         raise Exception("Error: " + rc + "getting the AIK TCPA Pub Key")
     return stdout
 
-def gen_aik():
+def call_gen_aik():
     (rc,stdout,stderr) = doexec([prg, "--gen_aik", aikblob])
     if rc != 0:
         raise Exception("Error: " + rc + "generation AIK")
+    return stdout
+
+def call_tpm_challenge():
+    (rc,stdout,stderr) = doexec([prg, "--tpm_challenge", aikblob, challengefile, responsefile])
+    if rc != 0:
+        raise Exception("Error: " + rc + "TPM challenge")
+    return stdout
+
+def call_tpm_quote():
+    (rc,stdout,stderr) = doexec([prg, "--tpm_quote", noncefile, aikblob, quotefile])
+    if rc != 0:
+        raise Exception("Error: " + rc + "getting TPM quote")
     return stdout
 
 ##Create an XML with
@@ -62,24 +78,49 @@ def gen_out_xml():
     aikpub_node  = dom.getElementsByTagName("xentxt:TPM_Attestation_KEY_PEM")[0]
     aiktcp_node  = dom.getElementsByTagName("xentxt:TPM_Attestation_KEY_TCPA")[0]
     try:
-        tpmcert_node.firstChild.nodeValue = get_tpmcert()
+        tpmcert_node.firstChild.nodeValue = call_get_tpmcert()
     except:
         tpmcert_node.firstChild.nodeValue = ''
-    ekpub_node.firstChild.nodeValue = get_endorsementkey()
+    ekpub_node.firstChild.nodeValue = call_get_endorsementkey()
     if not os.path.isfile(aikblob) :
-        gen_aik()
-    aiktcp_node.firstChild.nodeValue = get_aik_tcpa()
-    aikpub_node.firstChild.nodeValue = get_aik_pem()
+        call_gen_aik()
+    aiktcp_node.firstChild.nodeValue = call_get_aik_tcpa()
+    aikpub_node.firstChild.nodeValue = call_get_aik_pem()
     f = open(tempxml,"w");
     f.write(dom.toxml())
     f.close()
 
-def main(session, args):
+def get_attestation_values(session, args):
     gen_out_xml()
     f = open(tempxml,"r")
     data = f.read()
     return data
 
+def challenge(session, args):
+    challenge = args['challenge']
+    f = open(challengefile,"w")
+    f.write(base64.b64decode(challenge))
+    f.close()
+    call_tpm_challenge()
+    f = open(responsefile,"r")
+    rc = f.read()
+    f.close()
+    return rc
+
+def get_tpm_quote(session, args):
+    bnonce =  args['nonce']
+    nonce  = base64.b64decode(bnonce)
+    f = open(noncefile,"w")
+    f.write(nonce)
+    f.close()
+    call_tpm_quote()
+    f = open(quotefile,"r")
+    rc = base64.b64encode(f.read())
+    f.close()
+    return rc
+
 if __name__ == "__main__":
-    XenAPIPlugin.dispatch({"main":main})
-    #print main(None,None)
+    XenAPIPlugin.dispatch({"get_attestation_values": get_attestation_values,
+                           "challenge": challenge,
+                           "get_tpm_quote": get_tpm_quote,
+                           })

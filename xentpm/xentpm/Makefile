@@ -19,6 +19,6 @@ install:
 	[ -d $(BASE) ] || mkdir -p $(BASE) 
 	[ -d $(PLUGIN) ] || mkdir -p $(PLUGIN)
 	cp -f xenaik.xml $(BASE)
-	cp -f xentpm  $(BASE)
-	cp -f tpm*       $(PLUGIN)
+	cp -f xentpm $(BASE)
+	cp -f tpm $(PLUGIN)
 
