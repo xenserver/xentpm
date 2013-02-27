@@ -77,6 +77,12 @@ tpm_quote(char *nonce_file, char *aik_blob_file, char* quote_file)
 
     log_msg (__FILE__, __LINE__," Request for Quote Generation!\n");
 
+    result = take_ownership();
+    if (result) {
+        log_msg(__FILE__,__LINE__,"Error 0x%X taking ownership of TPM.\n", result);
+        exit_status(result);
+    }
+
     result = Tspi_Context_Create(&hContext); CKERR;
     result = Tspi_Context_Connect(hContext, NULL); CKERR;
     result = Tspi_Context_LoadKeyByUUID(hContext,

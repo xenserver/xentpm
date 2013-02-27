@@ -58,6 +58,12 @@ int tpm_challenge(char *aik_blob_file, char *challenge_file, char *response_file
 
     log_msg(__FILE__,__LINE__, "Recieved a Challange\n");
 
+    result = take_ownership();
+    if (result) {
+        log_msg(__FILE__,__LINE__,"Error 0x%X taking ownership of TPM.\n", result);
+        exit_status(result);
+    }
+
     result = Tspi_Context_Create(&hContext); CKERR;
     result = Tspi_Context_Connect(hContext, NULL); CKERR;
     result = Tspi_Context_LoadKeyByUUID(hContext,
