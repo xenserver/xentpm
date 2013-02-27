@@ -1,7 +1,5 @@
 #include "xentpm.h"
 
-#define CKERR if (result != TSS_SUCCESS) { log_msg(__FILE__,__LINE__,"Failure, error code: 0x%x %s \n", result,Trspi_Error_String(result)); return 1; }
-
 //
 // Read the /sys/class/misc/tpm0/device/owned file.
 // If it contains a 0, then the TPM is not owned.

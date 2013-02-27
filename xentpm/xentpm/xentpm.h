@@ -16,4 +16,5 @@ void exit_status(int status);
 
 extern FILE *log_filp;
 
-int get_ek();
+#define CKERR if (result != TSS_SUCCESS) { log_msg(__FILE__,__LINE__,"Failure, error code: 0x%x %s \n", result,Trspi_Error_String(result)); return 1; }
+

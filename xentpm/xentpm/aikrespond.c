@@ -30,205 +30,118 @@
  * THE SOFTWARE.
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <memory.h>
-#include <trousers/tss.h>
-#include <time.h>
-#include <stdarg.h>
-/* Uncomment this if you don't want to use POPUP to get owner secret */
-#define OWNER_SECRET	"xenroot"
+#include "xentpm.h"
 
-#define CKERR	if (result != TSS_SUCCESS) goto error
-
-#define LOG_FILE  "/tmp/xen_tpm_agent.log"
-
-void log_msg(char* file,int line,char *msg, ...);
-void exit_status(int status);
-FILE *log_filp = NULL;
-
-int
-main (int ac, char **av)
+int tpm_challenge(char *aik_blob_file, char *challenge_file, char *response_file)
 {
-	TSS_HCONTEXT	hContext;
-	TSS_HTPM	hTPM;
-	TSS_HKEY	hSRK;
-	TSS_HKEY	hAIK;
-	TSS_HPOLICY	hTPMPolicy;
-	TSS_HPOLICY	hSrkPolicy;
-	TSS_HPOLICY	hAIKPolicy;
-	TSS_UUID	SRK_UUID = TSS_UUID_SRK;
-	BYTE		srkSecret[] = TSS_WELL_KNOWN_SECRET;
-	FILE		*f_in;
-	FILE		*f_out;
-	char		*pass = NULL;
-	BYTE		*response;
-	UINT32		responseLen;
-	BYTE		*buf;
-	UINT32		bufLen;
-	BYTE		*asym;
-	UINT32		asymLen;
-	BYTE		*sym;
-	UINT32		symLen;
-	int		i;
-	int		result;
+    TSS_HCONTEXT hContext;
+    TSS_HTPM hTPM;
+    TSS_HKEY hSRK;
+    TSS_HKEY hAIK;
+    TSS_HPOLICY	hTPMPolicy;
+    TSS_HPOLICY	hSrkPolicy;
+    TSS_HPOLICY	hAIKPolicy;
+    TSS_UUID SRK_UUID = TSS_UUID_SRK;
+    BYTE srkSecret[] = TSS_WELL_KNOWN_SECRET;
+    FILE *f_in;
+    FILE *f_out;
+    BYTE *response;
+    UINT32 responseLen;
+    BYTE *buf;
+    UINT32 bufLen;
+    BYTE *asym;
+    UINT32 asymLen;
+    BYTE *sym;
+    UINT32 symLen;
+    int	i;
+    int	result;
 
-    log_filp = fopen(LOG_FILE,"a+");
-    
-     if (!log_filp) {
-        exit_status(1);
-     }
+    log_msg(__FILE__,__LINE__, "Recieved a Challange\n");
 
+    result = Tspi_Context_Create(&hContext); CKERR;
+    result = Tspi_Context_Connect(hContext, NULL); CKERR;
+    result = Tspi_Context_LoadKeyByUUID(hContext,
+                TSS_PS_TYPE_SYSTEM, SRK_UUID, &hSRK); CKERR;
+    result = Tspi_GetPolicyObject(hSRK, TSS_POLICY_USAGE, &hSrkPolicy); CKERR;
+    result = Tspi_Policy_SetSecret(hSrkPolicy, TSS_SECRET_MODE_PLAIN,
+                strlen(OWNER_SECRET), OWNER_SECRET); CKERR;
+    result = Tspi_Context_GetTpmObject(hContext, &hTPM); CKERR;
+    result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_POLICY,
+                TSS_POLICY_USAGE, &hTPMPolicy); CKERR;
+    result = Tspi_Policy_AssignToObject(hTPMPolicy, hTPM);
+    result = Tspi_Policy_SetSecret(hTPMPolicy, TSS_SECRET_MODE_PLAIN,
+                strlen(OWNER_SECRET), OWNER_SECRET); CKERR;
 
-	if ((ac<2) || ((0==strcmp(av[1],"-p")) ? (ac!=6) : (ac!=4))) {
-		log_msg (__FILE__,__LINE__, "Usage: %s [-p password] aikblobfile challengefile outresponsefile\n", av[0]);
-		exit (1);
-	}
+    // Read AIK blob
+    if ((f_in = fopen(aik_blob_file, "rb")) == NULL) {
+        log_msg(__FILE__,__LINE__, "Unable to open file %s\n", aik_blob_file);
+        exit(1);
+    }
+    fseek(f_in, 0, SEEK_END);
+    bufLen = ftell(f_in);
+    fseek(f_in, 0, SEEK_SET);
+    buf = malloc(bufLen);
+    if (fread(buf, 1, bufLen, f_in) != bufLen) {
+        log_msg(__FILE__,__LINE__, "Unable to readn file %s\n", aik_blob_file);
+        exit(1);
+    }
+    fclose(f_in);
 
-	if (0 == strcmp(av[1], "-p")) {
-		pass = av[2];
-		for (i=3; i<ac; i++)
-			av[i-2] = av[i];
-		ac -= 2;
-	}
+    result = Tspi_Context_LoadKeyByBlob(hContext, hSRK, bufLen, buf, &hAIK); CKERR;
+    free(buf);
 
-    
-	log_msg (__FILE__,__LINE__, "Recieved a Challange\n");
+    // Read challenge file
+    if ((f_in = fopen(challenge_file, "rb")) == NULL) {
+        log_msg(__FILE__,__LINE__, "Unable to open file %s\n", challenge_file);
+        exit(1);
+    }
+    fseek(f_in, 0, SEEK_END);
+    bufLen = ftell(f_in);
+    fseek(f_in, 0, SEEK_SET);
+    buf = malloc(bufLen);
+    if (fread(buf, 1, bufLen, f_in) != bufLen) {
+        log_msg(__FILE__,__LINE__, "Unable to readn file %s\n", challenge_file);
+        exit(1);
+    }
+    fclose(f_in);
 
-	result = Tspi_Context_Create(&hContext); CKERR;
-	result = Tspi_Context_Connect(hContext, NULL); CKERR;
-	result = Tspi_Context_LoadKeyByUUID(hContext,
-			TSS_PS_TYPE_SYSTEM, SRK_UUID, &hSRK); CKERR;
-	result = Tspi_GetPolicyObject (hSRK, TSS_POLICY_USAGE, &hSrkPolicy); CKERR;
-	result = Tspi_Policy_SetSecret(hSrkPolicy, TSS_SECRET_MODE_PLAIN,
-			strlen(OWNER_SECRET), OWNER_SECRET); CKERR;
-	result = Tspi_Context_GetTpmObject (hContext, &hTPM); CKERR;
-	result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_POLICY,
-			TSS_POLICY_USAGE, &hTPMPolicy); CKERR;
-	result = Tspi_Policy_AssignToObject(hTPMPolicy, hTPM);
-#ifdef OWNER_SECRET
-	result = Tspi_Policy_SetSecret (hTPMPolicy, TSS_SECRET_MODE_PLAIN,
-			strlen(OWNER_SECRET), OWNER_SECRET); CKERR;
-#else
-	result = Tspi_Policy_SetSecret (hTPMPolicy, TSS_SECRET_MODE_POPUP, 0, NULL); CKERR;
-#endif
+    // Parse challenge
+    if (bufLen < 8)
+        goto badchal;
+    asymLen = ntohl(*(UINT32*)buf);
+    asym = buf + 4;
+    buf += asymLen + 4;
+    if (bufLen < asymLen+8)
+        goto badchal;
+    symLen = ntohl(*(UINT32*)buf);
+    if (bufLen != asymLen + symLen + 8)
+        goto badchal;
+    sym = buf + 4;
 
-	/* Read AIK blob */
-	if ((f_in = fopen(av[1], "rb")) == NULL) {
-		log_msg (__FILE__,__LINE__, "Unable to open file %s\n", av[1]);
-		exit (1);
-	}
-	fseek (f_in, 0, SEEK_END);
-	bufLen = ftell (f_in);
-	fseek (f_in, 0, SEEK_SET);
-	buf = malloc (bufLen);
-	if (fread(buf, 1, bufLen, f_in) != bufLen) {
-		log_msg (__FILE__,__LINE__, "Unable to readn file %s\n", av[1]);
-		exit (1);
-	}
-	fclose (f_in);
+    // Decrypt challenge data
+    result = Tspi_TPM_ActivateIdentity(hTPM, hAIK, asymLen, asym,
+                                       symLen, sym,
+                                       &responseLen, &response); CKERR;
 
-	result = Tspi_Context_LoadKeyByBlob (hContext, hSRK, bufLen, buf, &hAIK); CKERR;
-	free (buf);
+    // Output response file
+    if ((f_out = fopen (response_file, "w")) == NULL) {
+        log_msg(__FILE__,__LINE__, "Unable to create file %s\n", response_file);
+        exit(1);
+    }
+    if (fwrite(response, 1, responseLen, f_out) != responseLen) {
+        log_msg(__FILE__,__LINE__, "Unable to write to file %s\n", response_file);
+        exit(1);
+    }
+    fclose(f_out);
 
-	if (pass) {
-		result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_POLICY,
-				TSS_POLICY_USAGE, &hAIKPolicy); CKERR;
-		result = Tspi_Policy_AssignToObject(hAIKPolicy, hAIK);
-		result = Tspi_Policy_SetSecret (hAIKPolicy, TSS_SECRET_MODE_PLAIN,
-				strlen(pass)+1, pass); CKERR;
-	}
-
-	/* Read challenge file */
-	if ((f_in = fopen(av[2], "rb")) == NULL) {
-		log_msg (__FILE__,__LINE__, "Unable to open file %s\n", av[2]);
-		exit (1);
-	}
-	fseek (f_in, 0, SEEK_END);
-	bufLen = ftell (f_in);
-	fseek (f_in, 0, SEEK_SET);
-	buf = malloc (bufLen);
-	if (fread(buf, 1, bufLen, f_in) != bufLen) {
-		log_msg (__FILE__,__LINE__, "Unable to readn file %s\n", av[2]);
-		exit (1);
-	}
-	fclose (f_in);
-
-	/* Parse challenge */
-	if (bufLen < 8)
-		goto badchal;
-	asymLen = ntohl(*(UINT32*)buf);
-	asym = buf + 4;
-	buf += asymLen + 4;
-	if (bufLen < asymLen+8)
-		goto badchal;
-	symLen = ntohl(*(UINT32*)buf);
-	if (bufLen != asymLen + symLen + 8)
-		goto badchal;
-	sym = buf + 4;
-
-	/* Decrypt challenge data */
-#ifndef OWNER_SECRET
-	{
-	/* Work around a bug in Trousers 0.3.1 - remove this block when fixed */
-	/* Force POPUP to activate, it is being ignored */
-		BYTE *dummyblob1; UINT32 dummylen1;
-		if (Tspi_TPM_OwnerGetSRKPubKey(hTPM, &dummylen1, &dummyblob1)
-				== TSS_SUCCESS) {
-			Tspi_Context_FreeMemory (hContext, dummyblob1);
-		}
-	}
-#endif
-	result = Tspi_TPM_ActivateIdentity (hTPM, hAIK, asymLen, asym,
-						symLen, sym,
-						&responseLen, &response); CKERR;
-
-	/* Output response file */
-	
-	if ((f_out = fopen (av[3], "w")) == NULL) {
-		log_msg (__FILE__,__LINE__, "Unable to create file %s\n", av[3]);
-		exit (1);
-	}
-	if (fwrite (response, 1, responseLen, f_out) != responseLen) {
-		log_msg (__FILE__,__LINE__, "Unable to write to file %s\n", av[3]);
-		exit (1);
-	}
-	fclose (f_out);
-
-	log_msg (__FILE__,__LINE__,"Success in response!\n");
-	return 0;
+    log_msg(__FILE__,__LINE__,"Success in response!\n");
+    return 0;
 
 error:
-	log_msg (__FILE__,__LINE__, "Failure, error code: 0x%x %s\n", result,Trspi_Error_String(result));
-	return 1;
+    log_msg(__FILE__,__LINE__, "Failure, error code: 0x%x %s\n", result,Trspi_Error_String(result));
+    return 1;
 
 badchal:
-	log_msg (__FILE__,__LINE__, "Challenge file format is wrong\n");
-	return 1;
+    log_msg(__FILE__,__LINE__, "Challenge file format is wrong\n");
+    return 1;
 }
-
-void log_msg(char * file, int line, char *msg, ...)
-{
-
-		va_list argp;
-        time_t t;  
-        char buf[strlen(ctime(&t))+ 1];  
-        time(&t);  
-        snprintf(buf,strlen(ctime(&t)),"%s ", ctime(&t));  
-        fprintf(log_filp, "%s ,%s, line %d: ",buf,file,line);
-		va_start(argp, msg);
-		vfprintf(log_filp, msg, argp);
-		va_end(argp);
-		fprintf(log_filp, "\n");
-}
-
-void exit_status(int status)
-{
-    if (log_filp) {
-        fflush(log_filp);
-        fclose(log_filp);
-    }
-    exit(status);
-}   
-
-
