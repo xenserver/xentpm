@@ -6,7 +6,7 @@ import sys
 import base64
 import subprocess
 path = "/opt/xensource/tpm/"
-#Usage: ./aikrespond [-p password] aikblobfile challengefile outresponsefile
+#prg  =  path + "xentpm"
 prg  =  path + "aikrespond"
 cfile = path + "challange"
 aikblob = path + "aiktpmblob"
@@ -20,6 +20,7 @@ def doexec(args, inputtext=None):
     return (rc,stdout,stderr)
 
 def call_exec():
+    #(rc,stdout,stderr) = doexec([prg, "--tpm_challenge", aikblob, cfile, outfile])
     (rc,stdout,stderr) = doexec([prg, aikblob, cfile, outfile])
     return rc
 
@@ -35,7 +36,7 @@ def main(session, args):
         f.write(base64.b64decode(challange))
         f.close()
     except:    
-		return error_code[cfile]
+	return error_code[cfile]
     try:        
         rc = call_exec()
         f = open(outfile,"r")
