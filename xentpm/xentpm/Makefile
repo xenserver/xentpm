@@ -9,7 +9,7 @@ all:xentpm xenquote
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-xentpm: xentpm.o takeOwnership.o getEndorsement.o generateAik.o aikrespond.o
+xentpm: xentpm.o takeOwnership.o getEndorsement.o generateAik.o challenge.o
 	gcc -o $@ $^ $(CFLAGS) $(LIBS)  
 
 xenquote: xenquote.o	
