@@ -6,11 +6,10 @@ import sys
 import base64
 import subprocess
 path = "/opt/xensource/tpm/"
-#Usage: %s  [-c noncefile ] aiktpmblob quotefile\n";
 cfile   = path + "nonce"
 aikblob = path + "aiktpmblob"
 outfile = path + "outquote"
-prg 	= path + "xenquote"
+prg 	= path + "xentpm"
 
 def doexec(args, inputtext=None):
     """Execute a subprocess, then return its return code, stdout and stderr"""
@@ -20,7 +19,7 @@ def doexec(args, inputtext=None):
     return (rc,stdout,stderr)
 
 def call_exec():
-    (rc,stdout,stderr) = doexec([prg,"-c",cfile,aikblob,outfile])
+    (rc,stdout,stderr) = doexec([prg, "--tpm_quote", cfile, aikblob, outfile])
     return rc
 
 error_code =  { 'unknown': 'Error happend in challange response ',\
