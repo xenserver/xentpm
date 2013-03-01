@@ -56,7 +56,7 @@ def call_gen_aik():
         raise Exception("Error: " + str(rc) + " generation AIK")
     return stdout
 
-def call_tpm_chall enge():
+def call_tpm_challenge():
     (rc,stdout,stderr) = doexec([prg, "--tpm_challenge", aikblob, challengefile, responsefile])
     if rc != 0:
         raise Exception("Error: " + str(rc) + " TPM challenge")
