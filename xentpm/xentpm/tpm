@@ -90,13 +90,13 @@ def gen_out_xml():
     f.write(dom.toxml())
     f.close()
 
-def get_attestation_values(session, args):
+def tpm_get_attestation_identity(session, args):
     gen_out_xml()
     f = open(tempxml,"r")
     data = f.read()
     return data
 
-def challenge(session, args):
+def tpm_challenge(session, args):
     challenge = args['challenge']
     f = open(challengefile,"w")
     f.write(base64.b64decode(challenge))
@@ -107,7 +107,7 @@ def challenge(session, args):
     f.close()
     return rc
 
-def get_tpm_quote(session, args):
+def tpm_get_quote(session, args):
     bnonce =  args['nonce']
     nonce  = base64.b64decode(bnonce)
     f = open(noncefile,"w")
@@ -120,7 +120,7 @@ def get_tpm_quote(session, args):
     return rc
 
 if __name__ == "__main__":
-    XenAPIPlugin.dispatch({"get_attestation_values": get_attestation_values,
-                           "challenge": challenge,
-                           "get_tpm_quote": get_tpm_quote,
+    XenAPIPlugin.dispatch({"tpm_get_attestation_identity": tpm_get_attestation_identity,
+                           "tpm_challenge": tpm_challenge,
+                           "tpm_get_quote": tpm_get_quote,
                            })
