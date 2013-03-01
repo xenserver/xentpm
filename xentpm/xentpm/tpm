@@ -29,43 +29,43 @@ def doexec(args, inputtext=None):
 def call_get_endorsementkey():
     (rc,stdout,stderr) = doexec([prg, "--get_ekey"])
     if rc != 0:
-        raise Exception("Error: " + rc + "getting the endorsement key")
+        raise Exception("Error: " + str(rc) + " getting the endorsement key")
     return stdout
 
 def call_get_tpmcert():
     (rc,stdout,stderr) = doexec([prg, "--get_ekcert"])
     if rc != 0:
-        raise Exception("Error: " + rc + "getting the TPM certificate")
+        raise Exception("Error: " + str(rc) + " getting the TPM certificate")
     return stdout
 
 def call_get_aik_pem():
     (rc,stdout,stderr) = doexec([prg, "--get_aik_pem", aikblob])
     if rc != 0:
-        raise Exception("Error: " + rc + "getting the AIK PEM")
+        raise Exception("Error: " + str(rc) + " getting the AIK PEM")
     return stdout
 
 def call_get_aik_tcpa():
     (rc,stdout,stderr) = doexec([prg, "--get_aik_tcpa", aikblob])
     if rc != 0:
-        raise Exception("Error: " + rc + "getting the AIK TCPA Pub Key")
+        raise Exception("Error: " + str(rc) + " getting the AIK TCPA Pub Key")
     return stdout
 
 def call_gen_aik():
     (rc,stdout,stderr) = doexec([prg, "--gen_aik", aikblob])
     if rc != 0:
-        raise Exception("Error: " + rc + "generation AIK")
+        raise Exception("Error: " + str(rc) + " generation AIK")
     return stdout
 
-def call_tpm_challenge():
+def call_tpm_chall enge():
     (rc,stdout,stderr) = doexec([prg, "--tpm_challenge", aikblob, challengefile, responsefile])
     if rc != 0:
-        raise Exception("Error: " + rc + "TPM challenge")
+        raise Exception("Error: " + str(rc) + " TPM challenge")
     return stdout
 
 def call_tpm_quote():
     (rc,stdout,stderr) = doexec([prg, "--tpm_quote", noncefile, aikblob, quotefile])
     if rc != 0:
-        raise Exception("Error: " + rc + "getting TPM quote")
+        raise Exception("Error: " + str(rc) + " getting TPM quote")
     return stdout
 
 ##Create an XML with
