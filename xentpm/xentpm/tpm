@@ -7,7 +7,7 @@ import urllib2
 import base64
 import subprocess
 import os.path
-from xml.dom.minidom import parse
+from xml.dom.minidom import parseString
 
 path          = "/opt/xensource/tpm/"
 prg           = path + "xentpm"
@@ -18,6 +18,16 @@ challengefile = path + "challenge"
 responsefile  = path + "response"
 noncefile     = path + "nonce"
 quotefile     = path + "outquote"
+
+
+
+xml_schema     = '<?xml version="1.0" encoding="UTF-8"?> \
+<xentxt:xentxtdata xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xentxt="http://www.XenTxt.org/XenTxtGetAIK" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.XenTxt.org/XenTxtGetAIK xentxt.xsd "> \
+  <xentxt:TPM_Endorsement_Certficate>MA==</xentxt:TPM_Endorsement_Certficate> \
+  <xentxt:TPM_Endorsement_KEY_PEM>MA==</xentxt:TPM_Endorsement_KEY_PEM> \
+  <xentxt:TPM_Attestation_KEY_PEM>MA==</xentxt:TPM_Attestation_KEY_PEM> \
+   <xentxt:TPM_Attestation_KEY_TCPA>MA==</xentxt:TPM_Attestation_KEY_TCPA> \
+</xentxt:xentxtdata>'
 
 def doexec(args, inputtext=None):
     """Execute a subprocess, then return its return code, stdout and stderr"""
@@ -70,8 +80,9 @@ def call_tpm_quote():
 
 ##Create an XML with
 ## certifciate, public keys
-def gen_out_xml():
-    dom = parse(xmlfile)
+
+def tpm_get_attestation_identity(session, args):
+    dom = parseString(xml_schema)
     root = dom.getElementsByTagName("xentxt:xentxtdata")
     tpmcert_node = dom.getElementsByTagName('xentxt:TPM_Endorsement_Certficate')[0]
     ekpub_node  = dom.getElementsByTagName("xentxt:TPM_Endorsement_KEY_PEM")[0]
@@ -86,15 +97,8 @@ def gen_out_xml():
         call_gen_aik()
     aiktcp_node.firstChild.nodeValue = call_get_aik_tcpa()
     aikpub_node.firstChild.nodeValue = call_get_aik_pem()
-    f = open(tempxml,"w");
-    f.write(dom.toxml())
-    f.close()
+    return dom.toxml()
 
-def tpm_get_attestation_identity(session, args):
-    gen_out_xml()
-    f = open(tempxml,"r")
-    data = f.read()
-    return data
 
 def tpm_challenge(session, args):
     challenge = args['challenge']
