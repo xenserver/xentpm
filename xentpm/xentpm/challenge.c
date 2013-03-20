@@ -32,7 +32,7 @@
 
 #include "xentpm.h"
 
-int tpm_challenge(char *aik_blob_file, char *challenge_file, char *response_file)
+int tpm_challenge(char *aik_blob_file, char *challenge)
 {
     TSS_HCONTEXT hContext;
     TSS_HTPM hTPM;
@@ -55,6 +55,7 @@ int tpm_challenge(char *aik_blob_file, char *challenge_file, char *response_file
     UINT32 symLen;
     int	i;
     int	result;
+    BIO *bmem, *b64;
 
     log_msg(__FILE__,__LINE__, "Recieved a Challange\n");
 
@@ -96,49 +97,49 @@ int tpm_challenge(char *aik_blob_file, char *challenge_file, char *response_file
     result = Tspi_Context_LoadKeyByBlob(hContext, hSRK, bufLen, buf, &hAIK); CKERR;
     free(buf);
 
-    // Read challenge file
-    if ((f_in = fopen(challenge_file, "rb")) == NULL) {
-        log_msg(__FILE__,__LINE__, "Unable to open file %s\n", challenge_file);
-        exit(1);
-    }
-    fseek(f_in, 0, SEEK_END);
-    bufLen = ftell(f_in);
-    fseek(f_in, 0, SEEK_SET);
-    buf = malloc(bufLen);
-    if (fread(buf, 1, bufLen, f_in) != bufLen) {
-        log_msg(__FILE__,__LINE__, "Unable to readn file %s\n", challenge_file);
-        exit(1);
-    }
-    fclose(f_in);
+    // Base64 decode the challenge
+    bufLen = strlen(challenge);
+    BYTE* challengeBuf = (BYTE*)malloc(bufLen);
+    memset(challengeBuf, 0, bufLen);
+    b64 = BIO_new(BIO_f_base64());
+    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+    bmem = BIO_new_mem_buf(challenge, bufLen);
+    bmem = BIO_push(b64, bmem);
+    int challengeLen = BIO_read(bmem, challengeBuf, bufLen);
+    BIO_free_all(bmem);
 
     // Parse challenge
-    if (bufLen < 8)
+    if (challengeLen < 8)
         goto badchal;
-    asymLen = ntohl(*(UINT32*)buf);
-    asym = buf + 4;
-    buf += asymLen + 4;
-    if (bufLen < asymLen+8)
+    asymLen = ntohl(*(UINT32*)challengeBuf);
+    asym = challengeBuf + 4;
+    challengeBuf += asymLen + 4;
+    if (challengeLen < asymLen+8)
         goto badchal;
-    symLen = ntohl(*(UINT32*)buf);
-    if (bufLen != asymLen + symLen + 8)
+    symLen = ntohl(*(UINT32*)challengeBuf);
+    if (challengeLen != asymLen + symLen + 8)
         goto badchal;
-    sym = buf + 4;
+    sym = challengeBuf + 4;
 
     // Decrypt challenge data
     result = Tspi_TPM_ActivateIdentity(hTPM, hAIK, asymLen, asym,
                                        symLen, sym,
                                        &responseLen, &response); CKERR;
 
-    // Output response file
-    if ((f_out = fopen (response_file, "w")) == NULL) {
-        log_msg(__FILE__,__LINE__, "Unable to create file %s\n", response_file);
-        exit(1);
-    }
-    if (fwrite(response, 1, responseLen, f_out) != responseLen) {
-        log_msg(__FILE__,__LINE__, "Unable to write to file %s\n", response_file);
-        exit(1);
-    }
-    fclose(f_out);
+    // Base64 encode the response to send back to the caller
+    BUF_MEM *bptr;
+    b64 = BIO_new(BIO_f_base64());
+    bmem = BIO_new(BIO_s_mem());
+    b64 = BIO_push(b64, bmem);
+    BIO_write(b64, response, responseLen);
+    BIO_flush(b64);
+    BIO_get_mem_ptr(b64, &bptr);
+    char *responseBuf = (char*)malloc(bptr->length);
+    memcpy(responseBuf, bptr->data, bptr->length-1);
+    responseBuf[bptr->length-1] = 0;
+    BIO_free_all(b64);
+    printf(responseBuf);
+    free(responseBuf);
 
     log_msg(__FILE__,__LINE__,"Success in response!\n");
     return 0;

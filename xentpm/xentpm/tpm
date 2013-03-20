@@ -14,8 +14,6 @@ prg           = path + "xentpm"
 xmlfile       = path + "xenaik.xml"
 aikblob       = path + "aiktpmblob"
 tempxml       = "/tmp/out.xml"
-challengefile = path + "challenge"
-responsefile  = path + "response"
 noncefile     = path + "nonce"
 quotefile     = path + "outquote"
 
@@ -56,8 +54,8 @@ def call_gen_aik():
         raise Exception("Error: " + str(rc) + " generation AIK")
     return stdout
 
-def call_tpm_challenge():
-    (rc,stdout,stderr) = doexec([prg, "--tpm_challenge", aikblob, challengefile, responsefile])
+def call_tpm_challenge(challenge):
+    (rc,stdout,stderr) = doexec([prg, "--tpm_challenge", aikblob, challenge])
     if rc != 0:
         raise Exception("Error: " + str(rc) + " TPM challenge")
     return stdout
@@ -98,13 +96,7 @@ def tpm_get_attestation_identity(session, args):
 
 def tpm_challenge(session, args):
     challenge = args['challenge']
-    f = open(challengefile,"w")
-    f.write(base64.b64decode(challenge))
-    f.close()
-    call_tpm_challenge()
-    f = open(responsefile,"r")
-    rc = f.read()
-    f.close()
+    rc = call_tpm_challenge(challenge)
     return rc
 
 def tpm_get_quote(session, args):
