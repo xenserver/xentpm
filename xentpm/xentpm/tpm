@@ -11,12 +11,9 @@ from xml.dom.minidom import parseString
 
 path          = "/opt/xensource/tpm/"
 prg           = path + "xentpm"
-xmlfile       = path + "xenaik.xml"
 aikblob       = path + "aiktpmblob"
-tempxml       = "/tmp/out.xml"
 noncefile     = path + "nonce"
 quotefile     = path + "outquote"
-
 
 
 xml_schema     = '<?xml version="1.0" encoding="UTF-8"?> \
