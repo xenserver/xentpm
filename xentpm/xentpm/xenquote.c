@@ -47,7 +47,7 @@
 static void sha1(TSS_HCONTEXT hContext, void *buf, UINT32 bufLen, BYTE *digest);
 
 int
-tpm_quote(char *nonce, char *aik_blob_file, char* quote_file)
+tpm_quote(char *nonce, char *aik_blob_file)
 {
     TSS_HCONTEXT hContext;
     TSS_HTPM hTPM;
@@ -137,8 +137,12 @@ tpm_quote(char *nonce, char *aik_blob_file, char* quote_file)
     result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_PCRS,
 		TSS_PCRS_STRUCT_INFO, &hPCRs); CKERR;
 	
+    // Create TSS_VALIDATION struct for Quote
+    valid.ulExternalDataLength = sizeof(chalmd);
+    valid.rgbExternalData = chalmd;
+
     // Also PCR buffer
-    buf = malloc (2 + npcrBytes + 4 + 20 * npcrMax);
+    buf = malloc((2 + npcrBytes + 4 + 20 * npcrMax) + valid.ulExternalDataLength);
     *(UINT16 *)buf = htons(npcrBytes);
     for (i=0; i<npcrBytes; i++)
         buf[2+i] = 0;
@@ -149,10 +153,6 @@ tpm_quote(char *nonce, char *aik_blob_file, char* quote_file)
         ++npcrs;
         buf[2+(pcr/8)] |= 1 << (pcr%8);
     }
-
-    // Create TSS_VALIDATION struct for Quote
-    valid.ulExternalDataLength = sizeof(chalmd);
-    valid.rgbExternalData = chalmd;
 
     // Perform Quote
     result = Tspi_TPM_Quote(hTPM, hAIK, hPCRs, &valid); CKERR;
@@ -174,49 +174,54 @@ tpm_quote(char *nonce, char *aik_blob_file, char* quote_file)
     bufLen = bp - buf;
 
     // Test the hash
-    sha1 (hContext, buf, bufLen, pcrmd);
-    if (memcmp (pcrmd, quoteInfo->compositeHash.digest, sizeof(pcrmd)) != 0) {
+    sha1(hContext, buf, bufLen, pcrmd);
+    if (memcmp(pcrmd, quoteInfo->compositeHash.digest, sizeof(pcrmd)) != 0) {
         // Try with smaller digest length 
         *(UINT16 *)buf = htons(npcrBytes-1);
-        memmove (buf+2+npcrBytes-1, buf+2+npcrBytes, bufLen-2-npcrBytes);
+        memmove(buf+2+npcrBytes-1, buf+2+npcrBytes, bufLen-2-npcrBytes);
         bufLen -= 1;
         sha1(hContext, buf, bufLen, pcrmd);
-        if (memcmp (pcrmd, quoteInfo->compositeHash.digest, sizeof(pcrmd)) != 0) {
+        if (memcmp(pcrmd, quoteInfo->compositeHash.digest, sizeof(pcrmd)) != 0) {
             log_msg (__FILE__,__LINE__,"Inconsistent PCR hash in output of quote\n");
-            exit (1);
+            exit(1);
         }
     }
     Tspi_Context_FreeMemory(hContext, tmpbuf);
 
-    /* Create quote file */
-    /* content of the quote file is following
-     * following data is serilized in this order
-     * 1)uit16 PCRSelectMAskSize 
-     * 2)BYTE* PCRSelectMast
-     * 3)uint32 QuoteSize 
-     * 4)BYTE *Quote (PCR Quote readable in Text)
-     * 5)BYTE *Signature
-     *
-     * The TPM/Trousers generate The composite hash of fields 1- 4
-     * this is used to fill TPM_Quote strcutre for verifying quote
-     * the Signature is of TPM_Quote from the TPM 
-     * For quote verification read details below.
-     * */
-	
-    if ((f_out = fopen (quote_file, "wb")) == NULL) {
-        log_msg(__FILE__,__LINE__,"Unable to create file %s\n", quote_file);
-        exit (1);
-    }
-    if (fwrite(buf, 1, bufLen, f_out) != bufLen) {
-        log_msg(__FILE__,__LINE__,"Unable to write to file %s\n", quote_file);
-        exit (1);
-    }
-    if (fwrite(valid.rgbValidationData, 1, valid.ulValidationDataLength, f_out)
-                 != valid.ulValidationDataLength) {
-        log_msg(__FILE__,__LINE__,"Unable to write to file %s\n", quote_file);
-        exit (1);
-    }
-    fclose(f_out);
+    //
+    // Create quote 
+    // content of the quote file is following
+    // following data is serilized in this order
+    //   1)uit16 PCRSelectMAskSize 
+    //   2)BYTE* PCRSelectMast
+    //   3)uint32 QuoteSize 
+    //   4)BYTE *Quote (PCR Quote readable in Text)
+    //   5)BYTE *Signature
+    //
+    // The TPM/Trousers generate The composite hash of fields 1- 4
+    // this is used to fill TPM_Quote strcutre for verifying quote
+    // the Signature is of TPM_Quote from the TPM 
+    // For quote verification read details below.
+    //
+    
+    // Tack on the rgbValidationData onto the end of the quote buffer
+    memcpy(&buf[bufLen], valid.rgbValidationData, valid.ulValidationDataLength);
+    bufLen += valid.ulValidationDataLength;
+
+    // Base64 encode the response to send back to the caller
+    BUF_MEM *bptr;
+    b64 = BIO_new(BIO_f_base64());
+    bmem = BIO_new(BIO_s_mem());
+    b64 = BIO_push(b64, bmem);
+    BIO_write(b64, buf, bufLen);
+    BIO_flush(b64);
+    BIO_get_mem_ptr(b64, &bptr);
+    char *quoteBuf = (char*)malloc(bptr->length);
+    memcpy(quoteBuf, bptr->data, bptr->length-1);
+    quoteBuf[bptr->length-1] = 0;
+    BIO_free_all(b64);
+    printf(quoteBuf);
+    free(quoteBuf);
 
     log_msg(__FILE__, __LINE__," Generate Quote Success!\n");
     return 0;

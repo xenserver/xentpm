@@ -12,9 +12,6 @@ from xml.dom.minidom import parseString
 path          = "/opt/xensource/tpm/"
 prg           = path + "xentpm"
 aikblob       = path + "aiktpmblob"
-quotefile     = path + "outquote"
-
-
 
 xml_schema     = '<?xml version="1.0" encoding="UTF-8"?> \
 <xentxt:xentxtdata xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xentxt="http://www.XenTxt.org/XenTxtGetAIK" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.XenTxt.org/XenTxtGetAIK xentxt.xsd "> \
@@ -68,7 +65,7 @@ def call_tpm_challenge(challenge):
     return stdout
 
 def call_tpm_quote(nonce):
-    (rc,stdout,stderr) = doexec([prg, "--tpm_quote", nonce, aikblob, quotefile])
+    (rc,stdout,stderr) = doexec([prg, "--tpm_quote", nonce, aikblob])
     if rc != 0:
         raise Exception("Error: " + str(rc) + " getting TPM quote")
     return stdout
@@ -101,10 +98,7 @@ def tpm_challenge(session, args):
 
 def tpm_get_quote(session, args):
     nonce =  args['nonce']
-    call_tpm_quote(nonce)
-    f = open(quotefile,"r")
-    rc = base64.b64encode(f.read())
-    f.close()
+    rc = call_tpm_quote(nonce)
     return rc
 
 if __name__ == "__main__":

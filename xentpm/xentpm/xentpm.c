@@ -16,8 +16,8 @@ Usage()
     printf("           --gen_aik <aikblobfile>\n");
     printf("           --get_aik_pem <aikblobfile>\n");
     printf("           --get_aik_tcpa <aikblobfile>\n");
-    printf("           --tpm_challenge <aikblobfile> <challenge file>\n");
-    printf("           --tpm_quote <nonce file> <aikblobfile> <quote file>\n");
+    printf("           --tpm_challenge <aikblobfile> <challenge>\n");
+    printf("           --tpm_quote <nonce> <aikblobfile>\n");
 }
 
 int
@@ -67,11 +67,11 @@ main(int argc, char **argv)
         }
         return tpm_challenge(argv[2], argv[3]);
     } else if (!strcasecmp(argv[1], "--tpm_quote")) {
-        if (argc < 5) {
+        if (argc < 4) {
             Usage();
             exit_status(1);
         }
-        return tpm_quote(argv[2], argv[3], argv[4]);
+        return tpm_quote(argv[2], argv[3]);
     } else {
         printf("Unknown option %s\n", argv[1]);
         Usage();
