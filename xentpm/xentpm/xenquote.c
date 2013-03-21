@@ -47,7 +47,7 @@
 static void sha1(TSS_HCONTEXT hContext, void *buf, UINT32 bufLen, BYTE *digest);
 
 int
-tpm_quote(char *nonce_file, char *aik_blob_file, char* quote_file)
+tpm_quote(char *nonce, char *aik_blob_file, char* quote_file)
 {
     TSS_HCONTEXT hContext;
     TSS_HTPM hTPM;
@@ -72,6 +72,7 @@ tpm_quote(char *nonce_file, char *aik_blob_file, char* quote_file)
     UINT32 tmpbufLen;
     BYTE chalmd[20];
     BYTE pcrmd[20];
+    BIO *bmem, *b64;
     int	i;
     int	result;
 
@@ -92,22 +93,20 @@ tpm_quote(char *nonce_file, char *aik_blob_file, char* quote_file)
 			 strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); CKERR;
     result = Tspi_Context_GetTpmObject (hContext, &hTPM); CKERR;
 
-    // Hash challenge file 
-    if ((f_in = fopen(nonce_file, "rb")) == NULL) {
-        log_msg (__FILE__,__LINE__,"Unable to open file %s\n", nonce_file);
-        exit (1);
-    }
-    fseek(f_in, 0, SEEK_END);
-    bufLen = ftell(f_in);
-    fseek(f_in, 0, SEEK_SET);
-    buf = malloc(bufLen);
-    if (fread(buf, 1, bufLen, f_in) != bufLen) {
-        log_msg (__FILE__,__LINE__,"Unable to readn file %s\n", nonce_file);
-        exit (1);
-    }
-    fclose(f_in);
-    sha1(hContext, buf, bufLen, chalmd);
-    free (buf);
+    // Base64 decode the nonce
+    bufLen = strlen(nonce);
+    BYTE* nonceBuf = (BYTE*)malloc(bufLen);
+    memset(nonceBuf, 0, bufLen);
+    b64 = BIO_new(BIO_f_base64());
+    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+    bmem = BIO_new_mem_buf(nonce, bufLen);
+    bmem = BIO_push(b64, bmem);
+    int nonceLen = BIO_read(bmem, nonceBuf, bufLen);
+    BIO_free_all(bmem);
+
+    // Hash the nonce
+    sha1(hContext, nonceBuf, nonceLen, chalmd);
+    free(nonceBuf);
 
     // Read AIK blob
     if ((f_in = fopen(aik_blob_file, "rb")) == NULL) {
@@ -213,7 +212,7 @@ tpm_quote(char *nonce_file, char *aik_blob_file, char* quote_file)
         exit (1);
     }
     if (fwrite(valid.rgbValidationData, 1, valid.ulValidationDataLength, f_out)
-			!= valid.ulValidationDataLength) {
+                 != valid.ulValidationDataLength) {
         log_msg(__FILE__,__LINE__,"Unable to write to file %s\n", quote_file);
         exit (1);
     }

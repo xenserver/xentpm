@@ -12,8 +12,8 @@ from xml.dom.minidom import parseString
 path          = "/opt/xensource/tpm/"
 prg           = path + "xentpm"
 aikblob       = path + "aiktpmblob"
-noncefile     = path + "nonce"
 quotefile     = path + "outquote"
+
 
 
 xml_schema     = '<?xml version="1.0" encoding="UTF-8"?> \
@@ -67,8 +67,8 @@ def call_tpm_challenge(challenge):
         raise Exception("Error: " + str(rc) + " TPM challenge")
     return stdout
 
-def call_tpm_quote():
-    (rc,stdout,stderr) = doexec([prg, "--tpm_quote", noncefile, aikblob, quotefile])
+def call_tpm_quote(nonce):
+    (rc,stdout,stderr) = doexec([prg, "--tpm_quote", nonce, aikblob, quotefile])
     if rc != 0:
         raise Exception("Error: " + str(rc) + " getting TPM quote")
     return stdout
@@ -94,19 +94,14 @@ def tpm_get_attestation_identity(session, args):
     aikpub_node.firstChild.nodeValue = call_get_aik_pem()
     return dom.toxml()
 
-
 def tpm_challenge(session, args):
     challenge = args['challenge']
     rc = call_tpm_challenge(challenge)
     return rc
 
 def tpm_get_quote(session, args):
-    bnonce =  args['nonce']
-    nonce  = base64.b64decode(bnonce)
-    f = open(noncefile,"w")
-    f.write(nonce)
-    f.close()
-    call_tpm_quote()
+    nonce =  args['nonce']
+    call_tpm_quote(nonce)
     f = open(quotefile,"r")
     rc = base64.b64encode(f.read())
     f.close()
