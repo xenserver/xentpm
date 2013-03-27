@@ -3,8 +3,6 @@
 
 #include "xentpm.h"
 
-FILE *log_filp = NULL;
-
 void
 Usage()
 {
@@ -23,15 +21,13 @@ Usage()
 int
 main(int argc, char **argv)
 {
-    log_filp = fopen(LOG_FILE,"a+");
-    
-    if (!log_filp) {
-        exit_status(1);
-    }
+    int status = 0;
+    openlog("xentpm", LOG_PID, LOG_USER);
 
     if (argc < 2) {
         Usage();
-        exit_status(1);
+        status = 1;
+        goto clean;
     }
 
     if (!strcasecmp(argv[1], "--tpm_owned")) {
@@ -45,65 +41,48 @@ main(int argc, char **argv)
     } else if (!strcasecmp(argv[1], "--gen_aik")) {
         if (argc < 3) {
             Usage();
-            exit_status(1);
+            status = 1;
+            goto clean;
         }
         return generate_aik(argv[2]);
     } else if (!strcasecmp(argv[1], "--get_aik_pem")) {
         if (argc < 3) {
             Usage();
-            exit_status(1);
+            status = 1;
+            goto clean;
         }
         return get_aik_pem(argv[2]);
     } else if (!strcasecmp(argv[1], "--get_aik_tcpa")) {
         if (argc < 3) {
             Usage();
-            exit_status(1);
+            status = 1;
+            goto clean;
         }
         return get_aik_tcpa(argv[2]);
     } else if (!strcasecmp(argv[1], "--tpm_challenge")) {
         if (argc < 4) {
             Usage();
-            exit_status(1);
+            status = 1;
+            goto clean;
         }
         return tpm_challenge(argv[2], argv[3]);
     } else if (!strcasecmp(argv[1], "--tpm_quote")) {
         if (argc < 4) {
             Usage();
-            exit_status(1);
+            status = 1;
+            goto clean;
         }
         return tpm_quote(argv[2], argv[3]);
     } else {
         printf("Unknown option %s\n", argv[1]);
         Usage();
-        exit_status(1);
+        status = 1;
+        goto clean;
     }
-}
 
-/* Check the certificate from the key */
-/* this in internal function for validatin certs from
- * the public key
- * */
-void log_msg(char * file, int line, char *msg, ...)
-{
-    va_list argp;
-    time_t t;  
-    char buf[strlen(ctime(&t))+ 1];  
-    time(&t);  
-    snprintf(buf,strlen(ctime(&t)),"%s ", ctime(&t));  
-    fprintf(log_filp, "%s ,%s, line %d: ",buf,file,line);
-    va_start(argp, msg);
-    vfprintf(log_filp, msg, argp);
-    va_end(argp);
-    fprintf(log_filp, "\n");
+clean:
+    closelog();
+    return status;
 }
-
-void exit_status(int status)
-{
-    if (log_filp) {
-        fflush(log_filp);
-        fclose(log_filp);
-    }
-    exit(status);
-}   
 
 #endif //XENTPM_H_

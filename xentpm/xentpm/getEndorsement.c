@@ -28,26 +28,26 @@ int get_ek()
 
     result = take_ownership();
     if (result) {
-        log_msg(__FILE__,__LINE__,"Error 0x%X taking ownership of TPM.\n", result);
-        exit_status(result);
+        syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
+        return result;
     }
 
     result = Tspi_Context_Create(&hContext);
     if (result != TSS_SUCCESS) {
-        log_msg(__FILE__,__LINE__,"Error 0x%x on Tspi_Context_Create Unable to connect\n", result);
-        exit_status(result);
+        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_Create Unable to connect\n", result);
+        return result;
     }
 
     result = Tspi_Context_Connect(hContext, NULL);
     if (result != TSS_SUCCESS) {
-        log_msg(__FILE__,__LINE__,"Error 0x%x on Tspi_Context_Connect Unable to connect\n", result);
-        exit_status(result);
+        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_Connect Unable to connect\n", result);
+        return result;
     }
 
     result = Tspi_Context_GetTpmObject (hContext, &hTPM);
     if (result != TSS_SUCCESS) {
-        log_msg(__FILE__,__LINE__,"Error 0x%x on Tspi_Context_GetTpmObject\n", result);
-        exit_status(result);
+        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_GetTpmObject\n", result);
+        return result;
     }
 
     result = Tspi_TPM_GetPubEndorsementKey (hTPM, FALSE, NULL, &hPubek);
@@ -55,37 +55,37 @@ int get_ek()
 
         result = Tspi_GetPolicyObject (hTPM, TSS_POLICY_USAGE, &ekPolicy);
         if (result != TSS_SUCCESS) {
-            log_msg(__FILE__,__LINE__,"Error 0x%x on Tspi_Context_GetTpmObject\n", result);
-            exit_status(result);
+            syslog(LOG_ERR, "Error 0x%x on Tspi_Context_GetTpmObject\n", result);
+            return result;
         }
 
         result = Tspi_Policy_SetSecret(ekPolicy, TSS_SECRET_MODE_PLAIN,
                 (UINT32)strlen(OWNER_SECRET),(BYTE*)OWNER_SECRET);
 
         if (result != TSS_SUCCESS) {
-            log_msg(__FILE__,__LINE__,"Error Setting TPM Password %s \n", Trspi_Error_String(result));
-            exit_status(result);
+            syslog(LOG_ERR, "Error Setting TPM Password %s \n", Trspi_Error_String(result));
+            return result;
         } 
         result = Tspi_TPM_GetPubEndorsementKey (hTPM, TRUE, NULL, &hPubek);
     }
 
     if (result != TSS_SUCCESS) {
-            log_msg(__FILE__,__LINE__,"Error Reading TPM EK 0x%x (%s) \n", result, Trspi_Error_String(result));
-            log_msg(__FILE__,__LINE__,"Error Reading TPM EK, check the owner password after enabling the TPM \n");
-	        exit_status(1);
+        syslog(LOG_ERR, "Error Reading TPM EK 0x%x (%s) \n", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Error Reading TPM EK, check the owner password after enabling the TPM \n");
+        return result;
     }
 
     result = Tspi_GetAttribData (hPubek, TSS_TSPATTRIB_RSAKEY_INFO,
             TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, &modulusLen, &modulus);
 
     if (result != TSS_SUCCESS) {
-        log_msg(__FILE__,__LINE__,"Error TPM EK RSA %s \n", Trspi_Error_String(result));
-        return 1;
+        syslog(LOG_ERR, "Error TPM EK RSA %s \n", Trspi_Error_String(result));
+        return result;
     }
 
     if (modulusLen != 256) {
         Tspi_Context_FreeMemory (hContext, modulus);
-        log_msg(__FILE__,__LINE__,"Error TPM EK RSA %s \n", Trspi_Error_String(result));
+        syslog(LOG_ERR, "Error TPM EK RSA %s \n", Trspi_Error_String(result));
         return 1;
     }
 
@@ -93,9 +93,9 @@ int get_ek()
             TSS_TSPATTRIB_KEYINFO_RSA_EXPONENT, &e_size, &e);
 
     if (result != TSS_SUCCESS) {
-        log_msg(__FILE__,__LINE__,"Error 0x%x on Tspi_Context_GetAttr Exponent\n", result);
-        Tspi_Context_FreeMemory (hContext, modulus);
-        return 1;
+        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_GetAttr Exponent\n", result);
+        Tspi_Context_FreeMemory(hContext, modulus);
+        return result;
     }
 
     Tspi_Context_CloseObject (hContext, hPubek);
@@ -128,14 +128,31 @@ int get_ekcert()
 
     result = take_ownership();
     if (result) {
-        log_msg(__FILE__,__LINE__,"Error 0x%X taking ownership of TPM.\n", result);
-        exit_status(result);
+        syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
+        return result;
     }
 
-    result = Tspi_Context_Create(&hContext); CKERR;
-    result = Tspi_Context_Connect(hContext, NULL); CKERR;
-    result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_NV, 0, &hNV); CKERR;
-    result = Tspi_SetAttribUint32(hNV, TSS_TSPATTRIB_NV_INDEX, 0, nvIndex); CKERR;
+    result = Tspi_Context_Create(&hContext);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Create failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+    result = Tspi_Context_Connect(hContext, NULL);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Connect failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+    result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_NV, 0, &hNV);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_CreateObject(TSS_OBJECT_TYPE_NV) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+    result = Tspi_SetAttribUint32(hNV, TSS_TSPATTRIB_NV_INDEX, 0, nvIndex);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_SetAttribUint32 failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
 
     /* Try reading certificate header from NV memory */
     blobLen = 5;
@@ -144,18 +161,33 @@ int get_ekcert()
     if (result != TSS_SUCCESS) {
         /* Try again with authorization */
         TSS_HPOLICY	hNVPolicy;
-        result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_POLICY, TSS_POLICY_USAGE, &hNVPolicy); CKERR;
+        result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_POLICY, TSS_POLICY_USAGE, &hNVPolicy); 
+        if (result != TSS_SUCCESS) {
+            syslog(LOG_ERR, "Tspi_Context_CreateObject(TSS_OBJECT_TYPE_POLICY) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+        }
+
         result = Tspi_Policy_SetSecret(hNVPolicy,TSS_SECRET_MODE_PLAIN,
                 (UINT32)strlen(OWNER_SECRET),(BYTE*)OWNER_SECRET);
-        result = Tspi_Policy_AssignToObject(hNVPolicy, hNV); CKERR;
+        if (result != TSS_SUCCESS) {
+            syslog(LOG_ERR, "Tspi_Policy_SetSecret failed with 0x%X %s", result, Trspi_Error_String(result));
+            return result;
+        }
+
+        result = Tspi_Policy_AssignToObject(hNVPolicy, hNV);
+        if (result != TSS_SUCCESS) {
+            syslog(LOG_ERR, "Tspi_Policy_AssignToObject failed with 0x%X %s", result, Trspi_Error_String(result));
+            return result;
+        }
+
         blobLen = 5;
         result = Tspi_NV_ReadValue(hNV, 0, &blobLen, &blob);
     }
     
     if (result != TSS_SUCCESS) {
-        // printf("Error %s\n",Trspi_Error_String(result));
-        log_msg(__FILE__,__LINE__,"Unable to read EK Certificate from TPM\n");
-        goto error;
+        syslog(LOG_ERR, "Tspi_NV_ReadValue failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Unable to read EK Certificate from TPM\n");
+        return result;
     }
     if (blobLen < 5)
         goto parseerr;
@@ -174,7 +206,11 @@ int get_ekcert()
     /*	result = Tspi_Context_FreeMemory (hContext, blob); CKERR; */
     offset = 5;
     blobLen = 2;
-    result = Tspi_NV_ReadValue(hNV, offset, &blobLen, &blob); CKERR;
+    result = Tspi_NV_ReadValue(hNV, offset, &blobLen, &blob); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_NV_ReadValue failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
     
     if (blobLen < 2)
         goto parseerr;
@@ -195,7 +231,12 @@ int get_ekcert()
         blobLen = ekbufLen-ekOffset;
         if (blobLen > BSIZE)
             blobLen = BSIZE;
-        result = Tspi_NV_ReadValue(hNV, offset, &blobLen, &blob); CKERR;
+        result = Tspi_NV_ReadValue(hNV, offset, &blobLen, &blob); 
+        if (result != TSS_SUCCESS) {
+            syslog(LOG_ERR, "Tspi_NV_ReadValue failed with 0x%X %s", result, Trspi_Error_String(result));
+            return result;
+        }
+
         memcpy (ekbuf+ekOffset, blob, blobLen);
         /*		result = Tspi_Context_FreeMemory (hContext, blob); CKERR; */
         offset += blobLen;
@@ -217,13 +258,14 @@ int get_ekcert()
     printf(buff);
     free(buff);
 
-    result = Tspi_Context_Close(hContext);CKERR;
+    result = Tspi_Context_Close(hContext);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Close failed with 0x%X %s", result, Trspi_Error_String(result));
+    }
+
     return 0;
 
-error:
-    log_msg(__FILE__,__LINE__,"Failure, error code: %s\n", Trspi_Error_String(result));
-    return 1;
 parseerr:
-    log_msg(__FILE__,__LINE__,"Failure, unable to parse certificate store structure\n");
+    syslog(LOG_ERR, "Failure, unable to parse certificate store structure\n");
     return 2;
 }

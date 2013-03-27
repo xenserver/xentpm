@@ -51,59 +51,126 @@ int generate_aik(char *aik_blob_file)
 
     result = take_ownership();
     if (result) {
-        log_msg(__FILE__,__LINE__,"Error 0x%X taking ownership of TPM.\n", result);
-        exit_status(result);
+        syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
+        return result;
     }
 
-    result = Tspi_Context_Create(&hContext); CKERR;
-    result = Tspi_Context_Connect(hContext, NULL); CKERR;
+    result = Tspi_Context_Create(&hContext); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Create failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+    result = Tspi_Context_Connect(hContext, NULL);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Connect failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
     result = Tspi_Context_LoadKeyByUUID(hContext,
-                TSS_PS_TYPE_SYSTEM, SRK_UUID, &hSRK); CKERR;
-    result = Tspi_GetPolicyObject(hSRK, TSS_POLICY_USAGE, &hSrkPolicy); CKERR;
+                TSS_PS_TYPE_SYSTEM, SRK_UUID, &hSRK);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_LoadKeyByUUID(TSS_PS_TYPE_SYSTEM, SRK_UUID) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_GetPolicyObject(hSRK, TSS_POLICY_USAGE, &hSrkPolicy); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_GetPolicyObject(SRK, TSS_POLICY_USAGE) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Policy_SetSecret(hSrkPolicy, TSS_SECRET_MODE_PLAIN,
-		strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); CKERR;
-    result = Tspi_Context_GetTpmObject (hContext, &hTPM); CKERR;
+		strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Policy_SetSecret(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_Context_GetTpmObject(hContext, &hTPM); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_GetTpmObject failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_POLICY,
-		TSS_POLICY_USAGE, &hTPMPolicy); CKERR;
+		TSS_POLICY_USAGE, &hTPMPolicy); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_CreateObject(TSS_OBJECT_TYPE_POLICY) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Policy_AssignToObject(hTPMPolicy, hTPM);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Policy_AssignToObject(TPM) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Policy_SetSecret(hTPMPolicy, TSS_SECRET_MODE_PLAIN,
-		strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); CKERR;
+		strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_SetSecret failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
 
     // Create dummy PCA key 
     result = Tspi_Context_CreateObject(hContext,
                                        TSS_OBJECT_TYPE_RSAKEY,
                                        TSS_KEY_TYPE_LEGACY|TSS_KEY_SIZE_2048,
-                                       &hPCA); CKERR;
+                                       &hPCA);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_CreateObject(RSAKEY, TSS_KEY_TYPE_LEGACY) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     memset (n, 0xff, sizeof(n));
     result = Tspi_SetAttribData(hPCA, TSS_TSPATTRIB_RSAKEY_INFO,
-		TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, sizeof(n), n); CKERR;
+		TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, sizeof(n), n); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_SetAttribData(PCA, RSAKEY_INFO) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
 
     // Create AIK object 
-    initFlags = TSS_KEY_TYPE_IDENTITY | TSS_KEY_SIZE_2048;
     result = Tspi_Context_CreateObject(hContext,
                                        TSS_OBJECT_TYPE_RSAKEY,
-                                       initFlags, &hAIK); CKERR;
+                                       TSS_KEY_TYPE_IDENTITY | TSS_KEY_SIZE_2048, &hAIK);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_CreateObject(RSAKEY, TSS_KEY_TYPE_IDENTITY) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
 
     // Generate new AIK 
     result = Tspi_TPM_CollateIdentityRequest(hTPM, hSRK, hPCA, 0, "",
 						 hAIK, TSS_ALG_AES,
 						 &blobLen,
-						 &blob); CKERR;
+						 &blob);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_CollateIdentityRequest failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     Tspi_Context_FreeMemory(hContext, blob);
 
     // Output file with AIK blob for TPM future Use */
     // The output of this call is TPM_KEY(12) struct
     // Used for loading an AIK in TPM
     result = Tspi_GetAttribData(hAIK, TSS_TSPATTRIB_KEY_BLOB,
-		TSS_TSPATTRIB_KEYBLOB_BLOB, &blobLen, &blob); CKERR;
+		TSS_TSPATTRIB_KEYBLOB_BLOB, &blobLen, &blob); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_GetAttribData(KEY_BLOB) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
 	
     if ((f_out = fopen (aik_blob_file, "wb")) == NULL) {
-        log_msg(__FILE__,__LINE__, "Unable to open %s for output\n", aik_blob_file);
-        exit_status (1);
+        syslog(LOG_ERR, "Unable to open %s for output\n", aik_blob_file);
+        return 1;
     }
     if (fwrite (blob, 1, blobLen, f_out) != blobLen) {
-        log_msg(__FILE__,__LINE__, "Unable to write to %s\n", aik_blob_file);
-        exit_status (1);
+        syslog(LOG_ERR, "Unable to write to %s\n", aik_blob_file);
+        return 1;
     }
     fclose (f_out);
     Tspi_Context_FreeMemory (hContext, blob);
@@ -139,47 +206,107 @@ int get_aik_pem(char *aik_blob_file)
 
     result = take_ownership();
     if (result) {
-        log_msg(__FILE__,__LINE__,"Error 0x%X taking ownership of TPM.\n", result);
-        exit_status(result);
+        syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
+        return result;
     }
 
-    result = Tspi_Context_Create(&hContext); CKERR;
-    result = Tspi_Context_Connect(hContext, NULL); CKERR;
+    result = Tspi_Context_Create(&hContext); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Create failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_Context_Connect(hContext, NULL); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Connect failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Context_LoadKeyByUUID(hContext,
-                TSS_PS_TYPE_SYSTEM, SRK_UUID, &hSRK); CKERR;
-    result = Tspi_GetPolicyObject(hSRK, TSS_POLICY_USAGE, &hSrkPolicy); CKERR;
+                TSS_PS_TYPE_SYSTEM, SRK_UUID, &hSRK);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_LoadKeyByUUID(TYPE_SYSTEM, SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_GetPolicyObject(hSRK, TSS_POLICY_USAGE, &hSrkPolicy); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_GetPolicyObject(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Policy_SetSecret(hSrkPolicy, TSS_SECRET_MODE_PLAIN,
-		strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); CKERR;
-    result = Tspi_Context_GetTpmObject (hContext, &hTPM); CKERR;
+		strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Policy_SetSecret(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_Context_GetTpmObject(hContext, &hTPM); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_GetTpmObject failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_POLICY,
-		TSS_POLICY_USAGE, &hTPMPolicy); CKERR;
+		TSS_POLICY_USAGE, &hTPMPolicy); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_CreateObject(TYPE_POLICY) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Policy_AssignToObject(hTPMPolicy, hTPM);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Policy_AssignToObject(TPM) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Policy_SetSecret(hTPMPolicy, TSS_SECRET_MODE_PLAIN,
-		strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); CKERR;
+		strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_SetSecret(TPM) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
 
     // Read AIK blob 
     if ((f_blob = fopen(aik_blob_file, "rb")) == NULL) {
-        log_msg (__FILE__,__LINE__, "Unable to open file %s\n", aik_blob_file);
-        exit (1);
+        syslog(LOG_ERR, "Unable to open file %s\n", aik_blob_file);
+        return 1;
     }
     fseek(f_blob, 0, SEEK_END);
     blobLen = ftell(f_blob);
     fseek(f_blob, 0, SEEK_SET);
     blob = malloc(blobLen);
     if (fread(blob, 1, blobLen, f_blob) != blobLen) {
-        log_msg (__FILE__,__LINE__, "Unable to readn file %s\n", aik_blob_file);
-        exit (1);
+        syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_file);
+        return 1;
     }
     fclose (f_blob);
 
-    result = Tspi_Context_LoadKeyByBlob (hContext, hSRK, blobLen, blob, &hAIK); CKERR;
+    result = Tspi_Context_LoadKeyByBlob(hContext, hSRK, blobLen, blob, &hAIK); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
 
     // Output AIK pub key and certs, preceded by 4-byte lengths 
     result = Tspi_GetAttribData(hAIK, TSS_TSPATTRIB_RSAKEY_INFO,
-		TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, &blobLen, &blob); CKERR;
+		TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, &blobLen, &blob); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_GetAttribData(AIK, RSA_MODULUS) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
 	
     result = Tspi_GetAttribData(hAIK, TSS_TSPATTRIB_RSAKEY_INFO,
-        TSS_TSPATTRIB_KEYINFO_RSA_EXPONENT, &e_size, &e); CKERR;
+        TSS_TSPATTRIB_KEYINFO_RSA_EXPONENT, &e_size, &e); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_GetAttribData(AIK, RSA_EXPONENT) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
 
     aikRsa = RSA_new();
     aikRsa->n = BN_bin2bn(blob, blobLen, NULL);
@@ -221,46 +348,99 @@ int get_aik_tcpa(char *aik_blob_file)
 
     result = take_ownership();
     if (result) {
-        log_msg(__FILE__,__LINE__,"Error 0x%X taking ownership of TPM.\n", result);
-        exit_status(result);
+        syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
+        return result;
     }
-    
-    result = Tspi_Context_Create(&hContext); CKERR;
-    result = Tspi_Context_Connect(hContext, NULL); CKERR;
+
+    result = Tspi_Context_Create(&hContext); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Create failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_Context_Connect(hContext, NULL); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Connect failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Context_LoadKeyByUUID(hContext,
-                TSS_PS_TYPE_SYSTEM, SRK_UUID, &hSRK); CKERR;
-    result = Tspi_GetPolicyObject(hSRK, TSS_POLICY_USAGE, &hSrkPolicy); CKERR;
+                TSS_PS_TYPE_SYSTEM, SRK_UUID, &hSRK);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_LoadKeyByUUID(TYPE_SYSTEM, SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_GetPolicyObject(hSRK, TSS_POLICY_USAGE, &hSrkPolicy); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_GetPolicyObject(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Policy_SetSecret(hSrkPolicy, TSS_SECRET_MODE_PLAIN,
-		strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); CKERR;
-    result = Tspi_Context_GetTpmObject (hContext, &hTPM); CKERR;
+		strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Policy_SetSecret(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_Context_GetTpmObject(hContext, &hTPM); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_GetTpmObject failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_POLICY,
-		TSS_POLICY_USAGE, &hTPMPolicy); CKERR;
+		TSS_POLICY_USAGE, &hTPMPolicy); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_CreateObject(TYPE_POLICY) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Policy_AssignToObject(hTPMPolicy, hTPM);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Policy_AssignToObject(TPM) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Policy_SetSecret(hTPMPolicy, TSS_SECRET_MODE_PLAIN,
-		strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); CKERR;
+		strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_SetSecret(TPM) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
 
     // Read AIK blob 
     if ((f_blob = fopen(aik_blob_file, "rb")) == NULL) {
-        log_msg (__FILE__,__LINE__, "Unable to open file %s\n", aik_blob_file);
-        exit (1);
+        syslog(LOG_ERR, "Unable to open file %s\n", aik_blob_file);
+        return 1;
     }
     fseek(f_blob, 0, SEEK_END);
     blobLen = ftell(f_blob);
     fseek(f_blob, 0, SEEK_SET);
     blob = malloc(blobLen);
     if (fread(blob, 1, blobLen, f_blob) != blobLen) {
-        log_msg (__FILE__,__LINE__, "Unable to readn file %s\n", aik_blob_file);
-        exit (1);
+        syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_file);
+        return 1;
     }
     fclose (f_blob);
 
-    result = Tspi_Context_LoadKeyByBlob(hContext, hSRK, blobLen, blob, &hAIK); CKERR;
+    result = Tspi_Context_LoadKeyByBlob(hContext, hSRK, blobLen, blob, &hAIK);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
 
     // The purpose of this call is to get TCPA_PUBKEY
     // structure of the AIK
     // this is passed to user for create a challange
     result = Tspi_GetAttribData(hAIK, TSS_TSPATTRIB_KEY_BLOB,
-                TSS_TSPATTRIB_KEYBLOB_PUBLIC_KEY, &blobLen, &blob); CKERR;
+                TSS_TSPATTRIB_KEYBLOB_PUBLIC_KEY, &blobLen, &blob); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_GetAttribData(AIK, PUBLIC_KEY) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
 
     BIO *bmem, *b64;
     BUF_MEM *bptr;

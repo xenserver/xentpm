@@ -19,8 +19,6 @@ int tpm_owned()
 
     c = fgetc(file);
     if (c != 0) {
-        log_msg(__FILE__,__LINE__,"/sys/class/misc/tpm0/device/owned contains %c\n", c);
-
         if (c == '1') {
             owned = 1;
         }
@@ -29,7 +27,7 @@ int tpm_owned()
     fclose(file);
 
     if (!owned) {
-        log_msg(__FILE__,__LINE__,"The TPM is not owned.\n");
+        syslog(LOG_INFO, "The TPM is not owned.\n");
     }
 
     return owned;
@@ -53,24 +51,24 @@ int take_ownership()
         return 0;
     }
 
-    log_msg(__FILE__,__LINE__,"Taking ownership of the TPM.\n");
+    syslog(LOG_INFO, "Taking ownership of the TPM.\n");
 
     result = Tspi_Context_Create(&hContext);
     if (result != TSS_SUCCESS) {
-        log_msg(__FILE__,__LINE__,"Error 0x%x on Tspi_Context_Create Unable to connect\n", result);
-        exit_status(result);
+        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_Create Unable to connect\n", result);
+        return result;
     }
 
     result = Tspi_Context_Connect(hContext, NULL);
     if (result != TSS_SUCCESS) {
-        log_msg(__FILE__,__LINE__,"Error 0x%x on Tspi_Context_Connect Unable to connect\n", result);
-        exit_status(result);
+        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_Connect Unable to connect\n", result);
+        return result;
     }
 
     result = Tspi_Context_GetTpmObject(hContext, &hTPM);
     if (result != TSS_SUCCESS) {
-        log_msg(__FILE__,__LINE__,"Error 0x%x on Tspi_Context_GetTpmObject\n", result);
-        exit_status(result);
+        syslog(LOG_INFO, "Error 0x%x on Tspi_Context_GetTpmObject\n", result);
+        return result;
     }
 
     //
@@ -78,22 +76,22 @@ int take_ownership()
     //
     result = Tspi_GetPolicyObject(hTPM, TSS_POLICY_USAGE, &tpmPolicy);
     if (result != TSS_SUCCESS) {
-        log_msg(__FILE__,__LINE__,"Error 0x%x on Tspi_GetPolicyObject\n", result);
-        exit_status(result);
+        syslog(LOG_ERR, "Error 0x%x on Tspi_GetPolicyObject\n", result);
+        return result;
     }
 
     result = Tspi_Policy_SetSecret(tpmPolicy, TSS_SECRET_MODE_PLAIN,
                 (UINT32)strlen(OWNER_SECRET),(BYTE*)OWNER_SECRET);
     if (result != TSS_SUCCESS) {
-        log_msg(__FILE__,__LINE__,"Error Setting TPM Password %s \n", Trspi_Error_String(result));
-        exit_status(result);
+        syslog(LOG_ERR, "Error Setting TPM Password %s \n", Trspi_Error_String(result));
+        return result;
     }
 
     fSrkAttrs = TSS_KEY_TSP_SRK | TSS_KEY_AUTHORIZATION;
     result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_RSAKEY, fSrkAttrs, &hSRK);
     if (result != TSS_SUCCESS) {
-        log_msg(__FILE__,__LINE__,"Error 0x%x on Tspi_Context_CreateObject\n", result);
-        exit_status(result);
+        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_CreateObject\n", result);
+        return result;
     }
 
     //
@@ -101,15 +99,15 @@ int take_ownership()
     //
     result = Tspi_GetPolicyObject(hSRK, TSS_POLICY_USAGE, &srkPolicy);
     if (result != TSS_SUCCESS) {
-        log_msg(__FILE__,__LINE__,"Error 0x%x on Tspi_GetPolicyObject\n", result);
-        exit_status(result);
+        syslog(LOG_ERR, "Error 0x%x on Tspi_GetPolicyObject\n", result);
+        return result;
     }
 
     result = Tspi_Policy_SetSecret(srkPolicy, TSS_SECRET_MODE_PLAIN,
                 (UINT32)strlen(OWNER_SECRET),(BYTE*)OWNER_SECRET);
     if (result != TSS_SUCCESS) {
-        log_msg(__FILE__,__LINE__,"Error Setting SRK Password %s \n", Trspi_Error_String(result));
-        exit_status(result);
+        syslog(LOG_ERR, "Error Setting SRK Password %s \n", Trspi_Error_String(result));
+        return result;
     }
 
     //
@@ -117,11 +115,11 @@ int take_ownership()
     //
     result = Tspi_TPM_TakeOwnership(hTPM, hSRK, 0);
     if (result != TSS_SUCCESS) {
-        log_msg(__FILE__,__LINE__,"Error 0x%x on Tspi_TPM_TakeOwnership (%s)\n", result, Trspi_Error_String(result));
-        exit_status(result);
+        syslog(LOG_ERR, "Error 0x%x on Tspi_TPM_TakeOwnership (%s)\n", result, Trspi_Error_String(result));
+        return result;
     }
 
-    log_msg(__FILE__,__LINE__,"XenServer now owns the TPM.\n");
+    syslog(LOG_INFO, "XenServer now owns the TPM.\n");
 
     return 0;
 }

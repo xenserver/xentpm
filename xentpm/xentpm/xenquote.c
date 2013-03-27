@@ -76,22 +76,51 @@ tpm_quote(char *nonce, char *aik_blob_file)
     int	i;
     int	result;
 
-    log_msg (__FILE__, __LINE__," Request for Quote Generation!\n");
+    syslog(LOG_INFO, "Request for TPM Quote Generation!\n");
 
     result = take_ownership();
     if (result) {
-        log_msg(__FILE__,__LINE__,"Error 0x%X taking ownership of TPM.\n", result);
-        exit_status(result);
+        syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
+        return result;
     }
 
-    result = Tspi_Context_Create(&hContext); CKERR;
-    result = Tspi_Context_Connect(hContext, NULL); CKERR;
+    result = Tspi_Context_Create(&hContext); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Create failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_Context_Connect(hContext, NULL); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Connect failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Context_LoadKeyByUUID(hContext,
-			TSS_PS_TYPE_SYSTEM, SRK_UUID, &hSRK); CKERR;
-    result = Tspi_GetPolicyObject (hSRK, TSS_POLICY_USAGE, &hSrkPolicy); CKERR;
+			TSS_PS_TYPE_SYSTEM, SRK_UUID, &hSRK); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_LoadKeyByUUID(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_GetPolicyObject (hSRK, TSS_POLICY_USAGE, &hSrkPolicy); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_GetPolicyObject(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Policy_SetSecret(hSrkPolicy, TSS_SECRET_MODE_PLAIN,
-			 strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); CKERR;
-    result = Tspi_Context_GetTpmObject (hContext, &hTPM); CKERR;
+			 strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Policy_SetSecret(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_Context_GetTpmObject (hContext, &hTPM); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_GetTpmObject failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
 
     // Base64 decode the nonce
     bufLen = strlen(nonce);
@@ -110,32 +139,45 @@ tpm_quote(char *nonce, char *aik_blob_file)
 
     // Read AIK blob
     if ((f_in = fopen(aik_blob_file, "rb")) == NULL) {
-        log_msg (__FILE__,__LINE__,"Unable to open file %s\n", aik_blob_file);
-        exit (1);
+        syslog(LOG_ERR, "Unable to open file %s\n", aik_blob_file);
+        return 1;
     }
     fseek(f_in, 0, SEEK_END);
     bufLen = ftell(f_in);
     fseek(f_in, 0, SEEK_SET);
     buf = malloc(bufLen);
     if (fread(buf, 1, bufLen, f_in) != bufLen) {
-        log_msg (__FILE__,__LINE__,"Unable to readn file %s\n", aik_blob_file);
-        exit (1);
+        syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_file);
+        return 1;
     }
     fclose(f_in);
     
-    result = Tspi_Context_LoadKeyByBlob(hContext, hSRK, bufLen, buf, &hAIK); CKERR;
-    free(buf);
-    
+    result = Tspi_Context_LoadKeyByBlob(hContext, hSRK, bufLen, buf, &hAIK); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     // Create PCR list to be quoted 
     // We will quote all the PCR's
     tpmProp = TSS_TPMCAP_PROP_PCR;
     result = Tspi_TPM_GetCapability(hTPM, TSS_TPMCAP_PROPERTY,
-		sizeof(tpmProp), (BYTE *)&tpmProp, &tmpbufLen, &tmpbuf); CKERR;
+		sizeof(tpmProp), (BYTE *)&tpmProp, &tmpbufLen, &tmpbuf); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_TPM_GetCapability failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     npcrMax = *(UINT32 *)tmpbuf;
     Tspi_Context_FreeMemory(hContext, tmpbuf);
     npcrBytes = (npcrMax + 7) / 8; // PCR MASK
     result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_PCRS,
-		TSS_PCRS_STRUCT_INFO, &hPCRs); CKERR;
+		TSS_PCRS_STRUCT_INFO, &hPCRs); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_CreateObject(PCR) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
 	
     // Create TSS_VALIDATION struct for Quote
     valid.ulExternalDataLength = sizeof(chalmd);
@@ -149,13 +191,23 @@ tpm_quote(char *nonce, char *aik_blob_file)
 
     for (i=0; i<npcrMax; i++) {
         long pcr = i ;
-        result = Tspi_PcrComposite_SelectPcrIndex(hPCRs, pcr); CKERR;
+        result = Tspi_PcrComposite_SelectPcrIndex(hPCRs, pcr); 
+        if (result != TSS_SUCCESS) {
+            syslog(LOG_ERR, "Tspi_PcrComposite_SelectPcrIndex failed with 0x%X %s", result, Trspi_Error_String(result));
+            return result;
+        }
+
         ++npcrs;
         buf[2+(pcr/8)] |= 1 << (pcr%8);
     }
 
     // Perform Quote
-    result = Tspi_TPM_Quote(hTPM, hAIK, hPCRs, &valid); CKERR;
+    result = Tspi_TPM_Quote(hTPM, hAIK, hPCRs, &valid);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_TPM_Quote failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     quoteInfo = (TPM_QUOTE_INFO *)valid.rgbData;
 
     // Fill in the PCR buffer
@@ -165,7 +217,12 @@ tpm_quote(char *nonce, char *aik_blob_file)
     for (i=0; i<=npcrMax; i++) {
         if (buf[2+(i/8)] & (1 << (i%8))) {
             result = Tspi_PcrComposite_GetPcrValue(hPCRs,
-				i, &tmpbufLen, &tmpbuf); CKERR;
+				i, &tmpbufLen, &tmpbuf);
+            if (result != TSS_SUCCESS) {
+                syslog(LOG_ERR, "Tspi_PcrComposite_GetPcrValue failed with 0x%X %s", result, Trspi_Error_String(result));
+                return result;
+            }
+
             memcpy (bp, tmpbuf, tmpbufLen);
             bp += tmpbufLen;
             Tspi_Context_FreeMemory(hContext, tmpbuf);
@@ -182,8 +239,8 @@ tpm_quote(char *nonce, char *aik_blob_file)
         bufLen -= 1;
         sha1(hContext, buf, bufLen, pcrmd);
         if (memcmp(pcrmd, quoteInfo->compositeHash.digest, sizeof(pcrmd)) != 0) {
-            log_msg (__FILE__,__LINE__,"Inconsistent PCR hash in output of quote\n");
-            exit(1);
+            syslog(LOG_ERR, "Inconsistent PCR hash in output of quote\n");
+            return 1;
         }
     }
     Tspi_Context_FreeMemory(hContext, tmpbuf);
@@ -223,12 +280,8 @@ tpm_quote(char *nonce, char *aik_blob_file)
     printf(quoteBuf);
     free(quoteBuf);
 
-    log_msg(__FILE__, __LINE__," Generate Quote Success!\n");
+    syslog(LOG_INFO, "Generate TPM Quote Success!\n");
     return 0;
-
-error:
-    log_msg(__FILE__,__LINE__,"Failure, error code: 0x%x\n", result);
-    return 1;
 }
 
 static void
