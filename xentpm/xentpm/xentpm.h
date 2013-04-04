@@ -1,3 +1,6 @@
+#ifndef XENTPM_H_
+#define XENTPM_H_
+
 #include <stdio.h>
 #include <string.h>
 #include <memory.h>
@@ -10,3 +13,4 @@
 
 #define OWNER_SECRET    "xenroot"
 
+#endif
