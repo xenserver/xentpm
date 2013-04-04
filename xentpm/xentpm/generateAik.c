@@ -126,7 +126,6 @@ int generate_aik(char *aik_blob_path)
     TSS_HPOLICY	hSrkPolicy;
     BYTE n[2048/8];
     FILE *f_out;
-    UINT32 initFlags;
     BYTE* tcpaiIdblob;
     UINT32 tcpaiIdlobLen;
     BYTE*  attrKeyblob;

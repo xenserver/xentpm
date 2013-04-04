@@ -43,7 +43,7 @@
  */
 
 #include "xentpm.h" 
-
+#include <arpa/inet.h>
 static void sha1(TSS_HCONTEXT hContext, void *buf, UINT32 bufLen, BYTE *digest);
 
 int
@@ -54,13 +54,11 @@ tpm_quote(char *nonce, char *aik_blob_file)
     TSS_HKEY hSRK;
     TSS_HKEY hAIK;
     TSS_HPOLICY	hSrkPolicy;
-    TSS_HPOLICY	hAIKPolicy;
     TSS_HPCRS hPCRs;
     TSS_UUID SRK_UUID = TSS_UUID_SRK;
     TSS_VALIDATION valid;
     TPM_QUOTE_INFO *quoteInfo;
     FILE *f_in;
-    FILE *f_out;
     UINT32 tpmProp;
     UINT32 npcrMax;
     UINT32 npcrBytes;

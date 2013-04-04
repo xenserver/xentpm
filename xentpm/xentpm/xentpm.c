@@ -1,5 +1,6 @@
 
 #include "xentpm.h"
+#include <getopt.h>
 
 void
 usage()
@@ -16,70 +17,115 @@ usage()
     printf("           --tpm_quote <nonce> <aikblobfile>\n");
 }
 
-int
-main(int argc, char **argv)
+
+int main(int argc, char *argv[]) 
 {
+    int opt= 0;
     int status = 0;
     openlog("xentpm", LOG_PID, LOG_USER);
 
-    if (argc < 2) {
-        usage();
-        status = 1;
-        goto clean;
-    }
+    static struct option long_options[] = {
+        {"tpm_owned",      no_argument, 0, 'o' },
+        {"take_ownership", no_argument, 0, 't' },
+        {"get_ekey",       no_argument, 0, 'e' },
+        {"get_ekcert",     no_argument, 0, 'k' },
+        {"gen_aik",        required_argument, 0, 'a' },
+        {"get_aik_pem",    required_argument, 0, 'p' },
+        {"get_aik_tcpa",   required_argument, 0, 'b' },
+        {"tpm_challenge",  required_argument, 0, 'c' },
+        {"tpm_quote",      required_argument, 0, 'q' },
+        {0, 0, 0, 0 }
+    };
 
-    if (!strcasecmp(argv[1], "--tpm_owned")) {
-        return tpm_owned();
-    } else if (!strcasecmp(argv[1], "--take_ownership")) {
-        return take_ownership();
-    } else if (!strcasecmp(argv[1], "--get_ekey")) {
-        return get_ek();
-    } else if (!strcasecmp(argv[1], "--get_ekcert")) {
-        return get_ekcert();
-    } else if (!strcasecmp(argv[1], "--gen_aik")) {
-        if (argc < 3) {
-            usage();
-            status = 1;
-            goto clean;
-        }
-        return generate_aik(argv[2]);
-    } else if (!strcasecmp(argv[1], "--get_aik_pem")) {
-        if (argc < 3) {
-            usage();
-            status = 1;
-            goto clean;
-        }
-        return get_aik_pem(argv[2]);
-    } else if (!strcasecmp(argv[1], "--get_aik_tcpa")) {
-        if (argc < 3) {
-            usage();
-            status = 1;
-            goto clean;
-        }
-        return get_aik_tcpa(argv[2]);
-    } else if (!strcasecmp(argv[1], "--tpm_challenge")) {
-        if (argc < 4) {
-            usage();
-            status = 1;
-            goto clean;
-        }
-        return tpm_challenge(argv[2], argv[3]);
-    } else if (!strcasecmp(argv[1], "--tpm_quote")) {
-        if (argc < 4) {
-            usage();
-            status = 1;
-            goto clean;
-        }
-        return tpm_quote(argv[2], argv[3]);
-    } else {
-        printf("Unknown option %s\n", argv[1]);
-        usage();
-        status = 1;
-        goto clean;
-    }
+    int long_index =0;
+    while ((opt = getopt_long(argc, argv,"otek:a:p:b:c:q", 
+                    long_options, &long_index )) != -1) {
+        switch (opt) {
+            case 'o' :
+                if (argc != 2) {
+                    usage();
+                    status = 1;
+                    goto clean;
+                }
+                status = tpm_owned();
+                break;
+            case 't' : 
+                if (argc != 2) {
+                    usage();
+                    status = 1;
+                    goto clean;
+                }
+                status = take_ownership();
+                break;
 
+            case 'e' : 
+                if (argc != 2) {
+                    usage();
+                    status = 1;
+                    goto clean;
+                }
+                status = get_ek();
+                break;
+
+            case 'k' : 
+                if (argc != 2) {
+                    usage();
+                    status = 1;
+                    goto clean;
+                }
+                status = get_ekcert();
+                break;
+            case 'a' : 
+                if (argc != 2) {
+                    usage();
+                    status = 1;
+                    goto clean;
+                }
+                status = generate_aik(optarg);
+                break;
+
+            case 'p' : 
+                if (argc != 3) {
+                    usage();
+                    status = 1;
+                    goto clean;
+                }
+                status = get_aik_pem(optarg);
+                break;
+
+            case 'b' : 
+                if (argc != 3) {
+                    usage();
+                    status = 1;
+                    goto clean;
+                }
+                status = get_aik_tcpa(optarg);
+                break;
+
+            case 'c' : 
+                if (optind >= argc ) {
+                    usage();
+                    status = 1;
+                    goto clean;
+                }   
+                status = tpm_challenge(optarg, argv[optind]);
+                break;
+            case 'q' :  
+                if (optind >= argc ) {
+                    status = 1;
+                    usage();
+                    goto clean;
+                }   
+                status = tpm_quote(optarg,argv[optind]);
+                break;
+            default: 
+                usage();
+                status = 1;
+                break;
+        }//switch
+    }//while
 clean:
     closelog();
     return status;
-}
+}    
 

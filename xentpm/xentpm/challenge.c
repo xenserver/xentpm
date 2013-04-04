@@ -31,7 +31,7 @@
  */
 
 #include "xentpm.h"
-
+#include <arpa/inet.h>
 int tpm_challenge(char *aik_blob_file, char *challenge)
 {
     TSS_HCONTEXT hContext;
@@ -40,11 +40,8 @@ int tpm_challenge(char *aik_blob_file, char *challenge)
     TSS_HKEY hAIK;
     TSS_HPOLICY	hTPMPolicy;
     TSS_HPOLICY	hSrkPolicy;
-    TSS_HPOLICY	hAIKPolicy;
     TSS_UUID SRK_UUID = TSS_UUID_SRK;
-    BYTE srkSecret[] = TSS_WELL_KNOWN_SECRET;
     FILE *f_in;
-    FILE *f_out;
     BYTE *response;
     UINT32 responseLen;
     BYTE *buf;
@@ -53,7 +50,6 @@ int tpm_challenge(char *aik_blob_file, char *challenge)
     UINT32 asymLen;
     BYTE *sym;
     UINT32 symLen;
-    int	i;
     int	result;
     BIO *bmem, *b64;
 
