@@ -45,7 +45,7 @@ int tpm_aik_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
         return result;
     }
     result = Tspi_Context_LoadKeyByUUID((*hContext),
-                TSS_PS_TYPE_SYSTEM, SRK_UUID, hSRK);
+            TSS_PS_TYPE_SYSTEM, SRK_UUID, hSRK);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Context_LoadKeyByUUID(TSS_PS_TYPE_SYSTEM, SRK_UUID) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -58,7 +58,7 @@ int tpm_aik_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
     }
 
     result = Tspi_Policy_SetSecret((*hSrkPolicy), TSS_SECRET_MODE_PLAIN,
-		strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); 
+            strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Policy_SetSecret(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -71,7 +71,7 @@ int tpm_aik_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
     }
 
     result = Tspi_Context_CreateObject((*hContext), TSS_OBJECT_TYPE_POLICY,
-		TSS_POLICY_USAGE, hTPMPolicy); 
+            TSS_POLICY_USAGE, hTPMPolicy); 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Context_CreateObject(TSS_OBJECT_TYPE_POLICY) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -84,7 +84,7 @@ int tpm_aik_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
     }
 
     result = Tspi_Policy_SetSecret((*hTPMPolicy), TSS_SECRET_MODE_PLAIN,
-		strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); 
+            strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_SetSecret failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -140,8 +140,8 @@ int generate_aik(char *aik_blob_path)
     }
 
     result = tpm_aik_context(&hContext, &hTPM, &hSRK, 
-                &hTPMPolicy, &hSrkPolicy); 
-    
+            &hTPMPolicy, &hSrkPolicy); 
+
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error in aik context for generating aik");
         return result;
@@ -150,9 +150,9 @@ int generate_aik(char *aik_blob_path)
     // Create dummy PCA key 
     // use XenServer Public Key 
     result = Tspi_Context_CreateObject(hContext,
-                                       TSS_OBJECT_TYPE_RSAKEY,
-                                       TSS_KEY_TYPE_LEGACY|TSS_KEY_SIZE_2048,
-                                       &hPCA);
+            TSS_OBJECT_TYPE_RSAKEY,
+            TSS_KEY_TYPE_LEGACY|TSS_KEY_SIZE_2048,
+            &hPCA);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Context_CreateObject(RSAKEY, TSS_KEY_TYPE_LEGACY) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -160,7 +160,7 @@ int generate_aik(char *aik_blob_path)
 
     memset (n, 0xff, sizeof(n));
     result = Tspi_SetAttribData(hPCA, TSS_TSPATTRIB_RSAKEY_INFO,
-		TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, sizeof(n), n); 
+            TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, sizeof(n), n); 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_SetAttribData(PCA, RSAKEY_INFO) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -169,8 +169,8 @@ int generate_aik(char *aik_blob_path)
 
     // Create AIK object 
     result = Tspi_Context_CreateObject(hContext,
-                                       TSS_OBJECT_TYPE_RSAKEY,
-                                       TSS_KEY_TYPE_IDENTITY | TSS_KEY_SIZE_2048, &hAIK);
+            TSS_OBJECT_TYPE_RSAKEY,
+            TSS_KEY_TYPE_IDENTITY | TSS_KEY_SIZE_2048, &hAIK);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_CreateObject(RSAKEY, TSS_KEY_TYPE_IDENTITY) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -179,7 +179,7 @@ int generate_aik(char *aik_blob_path)
 
     // Generate new AIK 
     result = Tspi_TPM_CollateIdentityRequest(hTPM, hSRK, hPCA, 0, "",
-						 hAIK, TSS_ALG_AES, &tcpaiIdlobLen, &tcpaiIdblob);
+            hAIK, TSS_ALG_AES, &tcpaiIdlobLen, &tcpaiIdblob);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_CollateIdentityRequest failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -191,13 +191,13 @@ int generate_aik(char *aik_blob_path)
     // The output of this call is TPM_KEY(12) struct
     // Used for loading an AIK in TPM
     result = Tspi_GetAttribData(hAIK, TSS_TSPATTRIB_KEY_BLOB,
-		TSS_TSPATTRIB_KEYBLOB_BLOB, &attrKeyblobLen, &attrKeyblob); 
+            TSS_TSPATTRIB_KEYBLOB_BLOB, &attrKeyblobLen, &attrKeyblob); 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_GetAttribData(KEY_BLOB) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
     }
 
-	
+
     if ((f_out = fopen (aik_blob_path, "wb")) == NULL) {
         syslog(LOG_ERR, "Unable to open %s for output\n", aik_blob_path);
         return 1;
@@ -222,7 +222,7 @@ int generate_aik(char *aik_blob_path)
     }
 
     result = tpm_aik_context_free(hContext,hTPMPolicy);
-    
+
     if (result != TSS_SUCCESS ) {
         syslog(LOG_ERR, "Error in aik context for free %s and %d ",__FILE__,__LINE__);
         return result;
@@ -261,15 +261,15 @@ int get_aik_pem(char *aik_blob_path)
         syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
         return result;
     }
-    
+
     result = tpm_aik_context(&hContext, &hTPM, &hSRK, 
-                &hTPMPolicy, &hSrkPolicy); 
+            &hTPMPolicy, &hSrkPolicy); 
 
     if(result != TSS_SUCCESS ) {
         syslog(LOG_ERR, "Error in aik context for generating aik_pem");
         return result;
     }
-   
+
     // Read AIK blob 
     if ((f_blob = fopen(aik_blob_path, "rb")) == NULL) {
         syslog(LOG_ERR, "Unable to open file %s\n", aik_blob_path);
@@ -279,12 +279,12 @@ int get_aik_pem(char *aik_blob_path)
     aikblobLen = ftell(f_blob);
     fseek(f_blob, 0, SEEK_SET);
     aikblob = malloc(aikblobLen);
-    
+
     if (!aikblob) {
         syslog(LOG_ERR, "Malloc failed in %s and %d ",__FILE__,__LINE__);
         return 1;
     }
-    
+
     if (fread(aikblob, 1, aikblobLen, f_blob) != aikblobLen) {
         syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
         return 1;
@@ -300,15 +300,15 @@ int get_aik_pem(char *aik_blob_path)
 
     // Aik pub key read from the blob 
     result = Tspi_GetAttribData(hAIK, TSS_TSPATTRIB_RSAKEY_INFO,
-		TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, &aikblobLen, &aikblob); 
+            TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, &aikblobLen, &aikblob); 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_GetAttribData(AIK, RSA_MODULUS) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
     }
 
-	
+
     result = Tspi_GetAttribData(hAIK, TSS_TSPATTRIB_RSAKEY_INFO,
-        TSS_TSPATTRIB_KEYINFO_RSA_EXPONENT, &keyExponentSize, &keyExponent); 
+            TSS_TSPATTRIB_KEYINFO_RSA_EXPONENT, &keyExponentSize, &keyExponent); 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_GetAttribData(AIK, RSA_EXPONENT) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -318,12 +318,12 @@ int get_aik_pem(char *aik_blob_path)
     aikPubKey = RSA_new();
     aikPubKey->n = BN_bin2bn(aikblob, aikblobLen, NULL);
     aikPubKey->e = BN_bin2bn(keyExponent,keyExponentSize, NULL);
-    
+
     PEM_write_RSA_PUBKEY(stdout, aikPubKey);
     RSA_free(aikPubKey);
-    
+
     result = tpm_aik_context_free(hContext,hTPMPolicy);
-    
+
     if (result != TSS_SUCCESS ) {
         syslog(LOG_ERR, "Error in aik context for free %s and %d ",__FILE__,__LINE__);
         return result;
@@ -359,8 +359,8 @@ int get_aik_tcpa(char *aik_blob_path)
         return result;
     }
     result = tpm_aik_context(&hContext, &hTPM, &hSRK, 
-                &hTPMPolicy, &hSrkPolicy); 
-    
+            &hTPMPolicy, &hSrkPolicy); 
+
     if(result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error in aik context for generating aik tcpa");
         return result;
@@ -392,7 +392,7 @@ int get_aik_tcpa(char *aik_blob_path)
     // structure of the AIK
     // this is passed to user for create a challange
     result = Tspi_GetAttribData(hAIK, TSS_TSPATTRIB_KEY_BLOB,
-                TSS_TSPATTRIB_KEYBLOB_PUBLIC_KEY, &tcpaKeyblobLen, &tcpaKeyblob); 
+            TSS_TSPATTRIB_KEYBLOB_PUBLIC_KEY, &tcpaKeyblobLen, &tcpaKeyblob); 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_GetAttribData(AIK, PUBLIC_KEY) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -412,9 +412,9 @@ int get_aik_tcpa(char *aik_blob_path)
     BIO_free_all(b64);
     printf(buff);
     free(buff);
-    
+
     result = tpm_aik_context_free(hContext,hTPMPolicy);
-    
+
     if (result != TSS_SUCCESS ) {
         syslog(LOG_ERR, "Error in aik context for free %s and %d ",__FILE__,__LINE__);
         return result;
