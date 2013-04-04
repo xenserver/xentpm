@@ -1,12 +1,10 @@
-#ifndef XENTPM_H_
-#define XENTPM_H_
 
 #include "xentpm.h"
 
 void
-Usage()
+usage()
 {
-    printf("Usage: xentpm\n");
+    printf("usage: xentpm\n");
     printf("           --tpm_owned |\n");
     printf("           --take_ownership |\n");
     printf("           --get_ekey |\n");
@@ -25,7 +23,7 @@ main(int argc, char **argv)
     openlog("xentpm", LOG_PID, LOG_USER);
 
     if (argc < 2) {
-        Usage();
+        usage();
         status = 1;
         goto clean;
     }
@@ -40,42 +38,42 @@ main(int argc, char **argv)
         return get_ekcert();
     } else if (!strcasecmp(argv[1], "--gen_aik")) {
         if (argc < 3) {
-            Usage();
+            usage();
             status = 1;
             goto clean;
         }
         return generate_aik(argv[2]);
     } else if (!strcasecmp(argv[1], "--get_aik_pem")) {
         if (argc < 3) {
-            Usage();
+            usage();
             status = 1;
             goto clean;
         }
         return get_aik_pem(argv[2]);
     } else if (!strcasecmp(argv[1], "--get_aik_tcpa")) {
         if (argc < 3) {
-            Usage();
+            usage();
             status = 1;
             goto clean;
         }
         return get_aik_tcpa(argv[2]);
     } else if (!strcasecmp(argv[1], "--tpm_challenge")) {
         if (argc < 4) {
-            Usage();
+            usage();
             status = 1;
             goto clean;
         }
         return tpm_challenge(argv[2], argv[3]);
     } else if (!strcasecmp(argv[1], "--tpm_quote")) {
         if (argc < 4) {
-            Usage();
+            usage();
             status = 1;
             goto clean;
         }
         return tpm_quote(argv[2], argv[3]);
     } else {
         printf("Unknown option %s\n", argv[1]);
-        Usage();
+        usage();
         status = 1;
         goto clean;
     }
@@ -85,4 +83,3 @@ clean:
     return status;
 }
 
-#endif //XENTPM_H_
