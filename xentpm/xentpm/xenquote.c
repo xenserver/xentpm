@@ -56,20 +56,20 @@ tpm_quote(char *nonce, char *aik_blob_file)
     TSS_HPOLICY	hSrkPolicy;
     TSS_HPCRS hPCRs;
     TSS_UUID SRK_UUID = TSS_UUID_SRK;
-    TSS_VALIDATION valid;
-    TPM_QUOTE_INFO *quoteInfo;
+    TSS_VALIDATION valid; //quote validation structure
+    TPM_QUOTE_INFO *quoteInfo; 
     FILE *f_in;
-    UINT32 tpmProp;
+    UINT32 tpmPCRProp;
     UINT32 npcrMax;
     UINT32 npcrBytes;
     UINT32 npcrs = 0;
     BYTE *buf;
     UINT32 bufLen;
-    BYTE *bp;
+    BYTE *bPointer;
     BYTE *tmpbuf;
     UINT32 tmpbufLen;
-    BYTE chalmd[20];
-    BYTE pcrmd[20];
+    BYTE nonceHash[20];
+    BYTE pcrHash[20];
     BIO *bmem, *b64;
     int	i;
     int	result;
@@ -132,7 +132,7 @@ tpm_quote(char *nonce, char *aik_blob_file)
     BIO_free_all(bmem);
 
     // Hash the nonce
-    sha1(hContext, nonceBuf, nonceLen, chalmd);
+    sha1(hContext, nonceBuf, nonceLen, nonceHash);
     free(nonceBuf);
 
     // Read AIK blob
@@ -158,9 +158,9 @@ tpm_quote(char *nonce, char *aik_blob_file)
 
     // Create PCR list to be quoted 
     // We will quote all the PCR's
-    tpmProp = TSS_TPMCAP_PROP_PCR;
+    tpmPCRProp = TSS_TPMCAP_PROP_PCR;
     result = Tspi_TPM_GetCapability(hTPM, TSS_TPMCAP_PROPERTY,
-		sizeof(tpmProp), (BYTE *)&tpmProp, &tmpbufLen, &tmpbuf); 
+		sizeof(tpmPCRProp), (BYTE *)&tpmPCRProp, &tmpbufLen, &tmpbuf); 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_TPM_GetCapability failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -178,10 +178,16 @@ tpm_quote(char *nonce, char *aik_blob_file)
 
 	
     // Create TSS_VALIDATION struct for Quote
-    valid.ulExternalDataLength = sizeof(chalmd);
-    valid.rgbExternalData = chalmd;
+    valid.ulExternalDataLength = sizeof(nonceHash);
+    valid.rgbExternalData = nonceHash;
 
-    // Also PCR buffer
+    // Allocate buffer for SelectMASK + Quotedata
+    // Also select all the availble PCRS
+    //   1)uit16 PCRSelectMAskSize //2 byets
+    //   2)BYTE* PCRSelectMast    // which pcrs selected (all)
+    //   3)uint32 QuoteSize       //  Quotes 
+    //   4)BYTE *Quote (PCR Quote readable in Text)
+    
     buf = malloc((2 + npcrBytes + 4 + 20 * npcrMax) + valid.ulExternalDataLength);
     *(UINT16 *)buf = htons(npcrBytes);
     for (i=0; i<npcrBytes; i++)
@@ -209,39 +215,38 @@ tpm_quote(char *nonce, char *aik_blob_file)
     quoteInfo = (TPM_QUOTE_INFO *)valid.rgbData;
 
     // Fill in the PCR buffer
-    bp = buf + 2 + npcrBytes;
-    *(UINT32 *)bp = htonl (20*npcrs);
-    bp += sizeof(UINT32);
+    bPointer = buf + 2 + npcrBytes;
+    *(UINT32 *)bPointer = htonl (20*npcrs);
+    bPointer += sizeof(UINT32);
     for (i=0; i<=npcrMax; i++) {
         if (buf[2+(i/8)] & (1 << (i%8))) {
-            result = Tspi_PcrComposite_GetPcrValue(hPCRs,
-				i, &tmpbufLen, &tmpbuf);
+            result = Tspi_PcrComposite_GetPcrValue(hPCRs,i, &tmpbufLen,
+                     &tmpbuf);
             if (result != TSS_SUCCESS) {
-                syslog(LOG_ERR, "Tspi_PcrComposite_GetPcrValue failed with 0x%X %s", result, Trspi_Error_String(result));
+                syslog(LOG_ERR, "Tspi_PcrComposite_GetPcrValue failed with 0x%X %s", 
+                        result, Trspi_Error_String(result));
                 return result;
             }
-
-            memcpy (bp, tmpbuf, tmpbufLen);
-            bp += tmpbufLen;
+            memcpy (bPointer, tmpbuf, tmpbufLen);
+            bPointer += tmpbufLen;
             Tspi_Context_FreeMemory(hContext, tmpbuf);
         }
     }
-    bufLen = bp - buf;
+    bufLen = bPointer - buf;
 
-    // Test the hash
-    sha1(hContext, buf, bufLen, pcrmd);
-    if (memcmp(pcrmd, quoteInfo->compositeHash.digest, sizeof(pcrmd)) != 0) {
+    // Test the hash before sending to client
+    sha1(hContext, buf, bufLen, pcrHash);
+    if (memcmp(pcrHash, quoteInfo->compositeHash.digest, sizeof(pcrHash)) != 0) {
         // Try with smaller digest length 
         *(UINT16 *)buf = htons(npcrBytes-1);
         memmove(buf+2+npcrBytes-1, buf+2+npcrBytes, bufLen-2-npcrBytes);
         bufLen -= 1;
-        sha1(hContext, buf, bufLen, pcrmd);
-        if (memcmp(pcrmd, quoteInfo->compositeHash.digest, sizeof(pcrmd)) != 0) {
+        sha1(hContext, buf, bufLen, pcrHash);
+        if (memcmp(pcrHash, quoteInfo->compositeHash.digest, sizeof(pcrHash)) != 0) {
             syslog(LOG_ERR, "Inconsistent PCR hash in output of quote\n");
             return 1;
         }
     }
-    Tspi_Context_FreeMemory(hContext, tmpbuf);
 
     //
     // Create quote 
@@ -279,6 +284,18 @@ tpm_quote(char *nonce, char *aik_blob_file)
     free(quoteBuf);
 
     syslog(LOG_INFO, "Generate TPM Quote Success!\n");
+    
+    result = Tspi_Context_FreeMemory (hContext,NULL);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_FreeMemory failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+    result = Tspi_Context_Close(hContext);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Close failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     return 0;
 }
 

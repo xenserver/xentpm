@@ -107,6 +107,17 @@ int get_ek()
     Tspi_Context_FreeMemory (hContext, modulus);
     Tspi_Context_FreeMemory (hContext, e);
 
+    result = Tspi_Context_FreeMemory (hContext,NULL);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_FreeMemory failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+    result = Tspi_Context_Close(hContext);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Close failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     PEM_write_RSA_PUBKEY(stdout, ekRsa);
     RSA_free(ekRsa);
     return 0;
@@ -258,9 +269,16 @@ int get_ekcert()
     printf(buff);
     free(buff);
 
+    result = Tspi_Context_FreeMemory (hContext,NULL);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_FreeMemory failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
     result = Tspi_Context_Close(hContext);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Context_Close failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
     }
 
     return 0;

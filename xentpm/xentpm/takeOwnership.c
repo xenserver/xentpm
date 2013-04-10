@@ -46,9 +46,6 @@ int take_ownership()
     syslog(LOG_INFO, "Taking ownership of the TPM.\n");
     
     
-    if (access("/opt/xensource/tpm/aiktpmblob",R_OK)) {
-        syslog(LOG_INFO, "Take Ownership aikblob already present \n");
-    }
     //
     // First check if the TPM is owned.  If it is not owned then xentpm needs to take ownership
     //
@@ -58,6 +55,9 @@ int take_ownership()
         return 0;
     }
 
+    if (access("/opt/xensource/tpm/aiktpmblob",R_OK)) {
+        syslog(LOG_INFO, "Take Ownership aikblob already present \n");
+    }
 
     result = Tspi_Context_Create(&hContext);
     if (result != TSS_SUCCESS) {

@@ -389,7 +389,7 @@ int get_aik_tcpa(char *aik_blob_path)
 
     // The purpose of this call is to get TCPA_PUBKEY
     // structure of the AIK
-    // this is passed to user for create a challange
+    // this is passed to user for creating a challange
     result = Tspi_GetAttribData(hAIK, TSS_TSPATTRIB_KEY_BLOB,
             TSS_TSPATTRIB_KEYBLOB_PUBLIC_KEY, &tcpaKeyblobLen, &tcpaKeyblob); 
     if (result != TSS_SUCCESS) {
