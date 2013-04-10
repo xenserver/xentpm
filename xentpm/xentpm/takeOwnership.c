@@ -1,5 +1,5 @@
 #include "xentpm.h"
-
+#include <unistd.h>
 //
 // Read the /sys/class/misc/tpm0/device/owned file.
 // If it contains a 0, then the TPM is not owned.
@@ -42,23 +42,29 @@ int take_ownership()
     TSS_HKEY hSRK;
     TSS_HPOLICY srkPolicy;
     TSS_FLAG fSrkAttrs;
-
+    
+    syslog(LOG_INFO, "Taking ownership of the TPM.\n");
+    
+    
+    if (access("/opt/xensource/tpm/aiktpmblob",R_OK)) {
+        syslog(LOG_INFO, "Take Ownership aikblob already present \n");
+    }
     //
     // First check if the TPM is owned.  If it is not owned then xentpm needs to take ownership
     //
     if (tpm_owned()) {
         // TPM is already owned so nothing to do.
+        syslog(LOG_INFO, "TPM is already owned.\n");
         return 0;
     }
 
-    syslog(LOG_INFO, "Taking ownership of the TPM.\n");
 
     result = Tspi_Context_Create(&hContext);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_Context_Create Unable to connect\n", result);
         return result;
     }
-
+    //Connect to Local Troursers URI=NULL
     result = Tspi_Context_Connect(hContext, NULL);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_Context_Connect Unable to connect\n", result);
@@ -112,7 +118,7 @@ int take_ownership()
 
     //
     // Take ownership of the TPM
-    //
+    // We expect the TPM to have an EK so Passing the third arg as 0.
     result = Tspi_TPM_TakeOwnership(hTPM, hSRK, 0);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_TPM_TakeOwnership (%s)\n", result, Trspi_Error_String(result));
