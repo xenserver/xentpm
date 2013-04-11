@@ -26,6 +26,7 @@
  */
 
 #include "xentpm.h"
+#include <unistd.h>
 
 int tpm_aik_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
         TSS_HPOLICY *hTPMPolicy, TSS_HPOLICY *hSrkPolicy) 
@@ -136,6 +137,10 @@ int generate_aik(char *aik_blob_path)
     if (result) {
         syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
         return result;
+    }
+    
+    if (access("/opt/xensource/tpm/aiktpmblob",R_OK)) {
+        syslog(LOG_INFO, "Take Ownership aikblob already present \n");
     }
 
     result = tpm_aik_context(&hContext, &hTPM, &hSRK, 
@@ -397,7 +402,7 @@ int get_aik_tcpa(char *aik_blob_path)
         return result;
     }
 
-    BIO *bmem, *b64;
+   /* BIO *bmem, *b64;
     BUF_MEM *bptr;
     b64 = BIO_new(BIO_f_base64());
     bmem = BIO_new(BIO_s_mem());
@@ -410,8 +415,13 @@ int get_aik_tcpa(char *aik_blob_path)
     buff[bptr->length-1] = 0;
     BIO_free_all(b64);
     printf(buff);
-    free(buff);
-
+    free(buff);*/
+    
+    if ((result = print_base64(tcpaKeyblob,tcpaKeyblobLen)) != 0) {
+        syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
+        return 1;
+    }
+    
     result = tpm_aik_context_free(hContext,hTPMPolicy);
 
     if (result != TSS_SUCCESS ) {
@@ -419,6 +429,31 @@ int get_aik_tcpa(char *aik_blob_path)
         return result;
     }
 
+    return 0;
+}
+
+int print_base64(void* data, UINT32 len)
+{
+
+    BIO *bmem, *b64;
+    BUF_MEM *bptr;
+    b64 = BIO_new(BIO_f_base64());
+    bmem = BIO_new(BIO_s_mem());
+    b64 = BIO_push(b64, bmem);
+    BIO_write(b64, data, len);
+    BIO_flush(b64);
+    BIO_get_mem_ptr(b64, &bptr);
+    char *b64Buff = (char*)malloc(bptr->length);
+    
+    if (!b64Buff) {
+        syslog(LOG_ERR, "Error in aik context for free %s and %d ",__FILE__,__LINE__);
+        return 1;
+    } 
+    memcpy(b64Buff, bptr->data, bptr->length-1);
+    b64Buff[bptr->length-1] = 0;
+    BIO_free_all(b64);
+    printf(b64Buff);
+    free(b64Buff);
     return 0;
 }
 

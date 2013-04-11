@@ -177,7 +177,7 @@ int tpm_challenge(char *aik_blob_file, char *challenge)
     }
 
     // Base64 encode the response to send back to the caller
-    BUF_MEM *bptr;
+    /*BUF_MEM *bptr;
     b64 = BIO_new(BIO_f_base64());
     bmem = BIO_new(BIO_s_mem());
     b64 = BIO_push(b64, bmem);
@@ -189,7 +189,12 @@ int tpm_challenge(char *aik_blob_file, char *challenge)
     responseBuf[bptr->length-1] = 0;
     BIO_free_all(b64);
     printf(responseBuf);
-    free(responseBuf);
+    free(responseBuf);*/
+
+    if ((result = print_base64(response,responseLen)) != 0) {
+        syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
+        return 1;
+    }
 
     syslog(LOG_INFO, "Success in response!\n");
     return 0;

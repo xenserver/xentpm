@@ -22,4 +22,5 @@ int take_ownership();
 int tpm_challenge(char *aik_blob_file, char *challenge);
 int get_ek();
 int get_ekcert();
+int print_base64(void* data, uint32_t len);
 #endif

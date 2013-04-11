@@ -254,7 +254,7 @@ int get_ekcert()
         ekOffset += blobLen;
     }
 
-    BIO *bmem, *b64;
+    /*BIO *bmem, *b64;
     BUF_MEM *bptr;
     b64 = BIO_new(BIO_f_base64());
     bmem = BIO_new(BIO_s_mem());
@@ -267,7 +267,12 @@ int get_ekcert()
     buff[bptr->length-1] = 0;
     BIO_free_all(b64);
     printf(buff);
-    free(buff);
+    free(buff);*/
+
+    if ((result = print_base64(ekbuf,ekbufLen)) != 0) {
+        syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
+        return 1;
+    }
 
     result = Tspi_Context_FreeMemory (hContext,NULL);
     if (result != TSS_SUCCESS) {

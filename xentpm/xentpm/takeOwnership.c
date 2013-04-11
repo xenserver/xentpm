@@ -1,6 +1,4 @@
-#include "xentpm.h"
-#include <unistd.h>
-//
+#include "xentpm.h"//
 // Read the /sys/class/misc/tpm0/device/owned file.
 // If it contains a 0, then the TPM is not owned.
 // If it contains a 1, then the TPM is owned.
@@ -12,6 +10,15 @@ int tpm_owned()
     char c;
 
     errno = 0;
+    
+    /* Currently trousers does not support two TPMs
+     * and the dev path is hardcoded to /dev/tpm0
+     * Still the 'owned' property belongs to the driver and 
+     * exposed via sysfs 
+     * TCG/TCPA driver will always expose this property for dev0
+     * Need to test on other drivers/ find a better way to do this.
+     * 
+     * */
     file = fopen("/sys/class/misc/tpm0/device/owned", "r");
     if (!file) {
         return owned;
@@ -53,10 +60,6 @@ int take_ownership()
         // TPM is already owned so nothing to do.
         syslog(LOG_INFO, "TPM is already owned.\n");
         return 0;
-    }
-
-    if (access("/opt/xensource/tpm/aiktpmblob",R_OK)) {
-        syslog(LOG_INFO, "Take Ownership aikblob already present \n");
     }
 
     result = Tspi_Context_Create(&hContext);

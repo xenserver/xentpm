@@ -269,7 +269,7 @@ tpm_quote(char *nonce, char *aik_blob_file)
     bufLen += valid.ulValidationDataLength;
 
     // Base64 encode the response to send back to the caller
-    BUF_MEM *bptr;
+    /*BUF_MEM *bptr;
     b64 = BIO_new(BIO_f_base64());
     bmem = BIO_new(BIO_s_mem());
     b64 = BIO_push(b64, bmem);
@@ -281,7 +281,12 @@ tpm_quote(char *nonce, char *aik_blob_file)
     quoteBuf[bptr->length-1] = 0;
     BIO_free_all(b64);
     printf(quoteBuf);
-    free(quoteBuf);
+    free(quoteBuf);*/
+
+    if ((result = print_base64(buf,bufLen)) != 0) {
+        syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
+        return 1;
+    }
 
     syslog(LOG_INFO, "Generate TPM Quote Success!\n");
     
