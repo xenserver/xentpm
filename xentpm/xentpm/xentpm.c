@@ -17,13 +17,15 @@ usage()
     printf("           --tpm_quote <nonce> <aikblobfile>\n");
 }
 
+#define MAX_ARG_SIZE 1024
 
 int main(int argc, char *argv[]) 
 {
     int opt= 0;
     int status = 0;
+    char max_arg_buffer[MAX_ARG_SIZE];
+    
     openlog("xentpm", LOG_PID, LOG_USER);
-
     static struct option long_options[] = {
         {"tpm_owned",      no_argument, 0, 'o' },
         {"take_ownership", no_argument, 0, 't' },
@@ -68,7 +70,7 @@ int main(int argc, char *argv[])
                 break;
 
             case 'k' : 
-                if (argc != 2) {
+                if (argc != 3) {
                     usage();
                     status = 1;
                     goto clean;
@@ -76,7 +78,7 @@ int main(int argc, char *argv[])
                 status = get_ekcert();
                 break;
             case 'a' : 
-                if (argc != 2) {
+                if (argc != 3) {
                     usage();
                     status = 1;
                     goto clean;
@@ -108,7 +110,16 @@ int main(int argc, char *argv[])
                     status = 1;
                     goto clean;
                 }   
-                status = tpm_challenge(optarg, argv[optind]);
+                //external API call
+                // do sanitation of the argument2 that is challange
+                if (!argv[optind]) {
+                    syslog(LOG_INFO, "Invalid challange argument to TPM");
+                    status = 1;
+                   goto clean;
+                }
+                memset(max_arg_buffer,'\0',MAX_ARG_SIZE);
+                strncpy(max_arg_buffer,argv[optind],MAX_ARG_SIZE);
+                status = tpm_challenge(optarg, max_arg_buffer);
                 break;
             case 'q' :  
                 if (optind >= argc ) {
@@ -116,7 +127,14 @@ int main(int argc, char *argv[])
                     usage();
                     goto clean;
                 }   
-                status = tpm_quote(optarg,argv[optind]);
+                if (!argv[optind]) {
+                    syslog(LOG_INFO, "Invalid nonce to TPM");
+                    status = 1;
+                   goto clean;
+                }
+                memset(max_arg_buffer,'\0',MAX_ARG_SIZE);
+                strncpy(max_arg_buffer,argv[optind],MAX_ARG_SIZE);
+                status = tpm_quote(optarg,max_arg_buffer);
                 break;
             default: 
                 usage();
