@@ -32,7 +32,7 @@
 
 #include "xentpm.h"
 #include <arpa/inet.h>
-int tpm_challenge(char *aik_blob_file, char *challenge)
+int tpm_challenge(char *aik_blob_path, char *challenge)
 {
     TSS_HCONTEXT hContext;
     TSS_HTPM hTPM;
@@ -121,8 +121,8 @@ int tpm_challenge(char *aik_blob_file, char *challenge)
 
 
     // Read AIK blob
-    if ((f_in = fopen(aik_blob_file, "rb")) == NULL) {
-        syslog(LOG_ERR, "Unable to open file %s\n", aik_blob_file);
+    if ((f_in = fopen(aik_blob_path, "rb")) == NULL) {
+        syslog(LOG_ERR, "Unable to open file %s\n", aik_blob_path);
         return 1;
     }
     fseek(f_in, 0, SEEK_END);
@@ -130,7 +130,7 @@ int tpm_challenge(char *aik_blob_file, char *challenge)
     fseek(f_in, 0, SEEK_SET);
     buf = malloc(bufLen);
     if (fread(buf, 1, bufLen, f_in) != bufLen) {
-        syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_file);
+        syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
         return 1;
     }
     fclose(f_in);
