@@ -121,8 +121,13 @@ tpm_quote(char *nonce, char *aik_blob_file)
     }
 
     // Base64 decode the nonce
+
     bufLen = strlen(nonce);
     BYTE* nonceBuf = (BYTE*)malloc(bufLen);
+    if (!nonceBuf) {
+        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
+        return 1;
+    }
     memset(nonceBuf, 0, bufLen);
     b64 = BIO_new(BIO_f_base64());
     BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
@@ -144,6 +149,12 @@ tpm_quote(char *nonce, char *aik_blob_file)
     bufLen = ftell(f_in);
     fseek(f_in, 0, SEEK_SET);
     buf = malloc(bufLen);
+    
+    if (!buf) {
+        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
+        return 1;
+    }
+
     if (fread(buf, 1, bufLen, f_in) != bufLen) {
         syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_file);
         return 1;
@@ -188,8 +199,15 @@ tpm_quote(char *nonce, char *aik_blob_file)
     //   3)uint32 QuoteSize       //  Quotes 
     //   4)BYTE *Quote (PCR Quote readable in Text)
     
-    buf = malloc((2 + npcrBytes + 4 + 20 * npcrMax) + valid.ulExternalDataLength);
+    buf = malloc((2 + npcrBytes + 4 + 20 * npcrMax));
+    
+    if (!buf) {
+        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
+        return 1;
+    }
+    
     *(UINT16 *)buf = htons(npcrBytes);
+    
     for (i=0; i<npcrBytes; i++)
         buf[2+i] = 0;
 
@@ -265,6 +283,13 @@ tpm_quote(char *nonce, char *aik_blob_file)
     //
     
     // Tack on the rgbValidationData onto the end of the quote buffer
+    buf = realloc(buf, bufLen + valid.ulValidationDataLength);
+
+    if (!buf) {
+        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
+        return 1;
+    }
+
     memcpy(&buf[bufLen], valid.rgbValidationData, valid.ulValidationDataLength);
     bufLen += valid.ulValidationDataLength;
 
