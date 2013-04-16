@@ -25,11 +25,17 @@ int get_ek()
     BYTE *e;
     RSA *ekRsa;
     TSS_HPOLICY ekPolicy;
+    BYTE tpm_key[KEY_SIZE];    
 
     result = take_ownership();
     if (result) {
         syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
         return result;
+    }
+    
+    if ((result = read_tpm_key(tpm_key,KEY_SIZE)) != 0) {
+        syslog(LOG_ERR, "TPM Key Not Found \n");
+        return TSS_E_FAIL;
     }
 
     result = Tspi_Context_Create(&hContext);
@@ -59,8 +65,8 @@ int get_ek()
             return result;
         }
 
-        result = Tspi_Policy_SetSecret(ekPolicy, TSS_SECRET_MODE_PLAIN,
-                (UINT32)strlen(OWNER_SECRET),(BYTE*)OWNER_SECRET);
+        result = Tspi_Policy_SetSecret(ekPolicy, TSS_SECRET_MODE_SHA1,
+                     (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
 
         if (result != TSS_SUCCESS) {
             syslog(LOG_ERR, "Error Setting TPM Password %s \n", Trspi_Error_String(result));
@@ -136,6 +142,7 @@ int get_ekcert()
     BYTE *blob;
     UINT32 tag, certType;
     int result;
+    BYTE tpm_key[KEY_SIZE];    
 
     result = take_ownership();
     if (result) {
@@ -178,8 +185,8 @@ int get_ekcert()
         return result;
         }
 
-        result = Tspi_Policy_SetSecret(hNVPolicy,TSS_SECRET_MODE_PLAIN,
-                (UINT32)strlen(OWNER_SECRET),(BYTE*)OWNER_SECRET);
+        result = Tspi_Policy_SetSecret(hNVPolicy, TSS_SECRET_MODE_SHA1,
+                   (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
         if (result != TSS_SUCCESS) {
             syslog(LOG_ERR, "Tspi_Policy_SetSecret failed with 0x%X %s", result, Trspi_Error_String(result));
             return result;

@@ -49,7 +49,7 @@ int take_ownership()
     TSS_HKEY hSRK;
     TSS_HPOLICY srkPolicy;
     TSS_FLAG fSrkAttrs;
-    
+    BYTE tpm_key[KEY_SIZE];    
     syslog(LOG_INFO, "Taking ownership of the TPM.\n");
     
     
@@ -62,6 +62,11 @@ int take_ownership()
         return 0;
     }
 
+    if ((result = read_tpm_key(tpm_key,KEY_SIZE)) != 0) {
+        syslog(LOG_ERR, "TPM Key Not Found \n");
+        return TSS_E_FAIL;
+    }
+     
     result = Tspi_Context_Create(&hContext);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_Context_Create Unable to connect\n", result);
@@ -89,8 +94,10 @@ int take_ownership()
         return result;
     }
 
-    result = Tspi_Policy_SetSecret(tpmPolicy, TSS_SECRET_MODE_PLAIN,
-                (UINT32)strlen(OWNER_SECRET),(BYTE*)OWNER_SECRET);
+    //result = Tspi_Policy_SetSecret(tpmPolicy, TSS_SECRET_MODE_PLAIN,
+      //          (UINT32)strlen(OWNER_SECRET),(BYTE*)OWNER_SECRET);
+    result = Tspi_Policy_SetSecret(tpmPolicy, TSS_SECRET_MODE_SHA1,
+                (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error Setting TPM Password %s \n", Trspi_Error_String(result));
         return result;
@@ -112,13 +119,14 @@ int take_ownership()
         return result;
     }
 
-    result = Tspi_Policy_SetSecret(srkPolicy, TSS_SECRET_MODE_PLAIN,
-                (UINT32)strlen(OWNER_SECRET),(BYTE*)OWNER_SECRET);
+    //result = Tspi_Policy_SetSecret(srkPolicy, TSS_SECRET_MODE_PLAIN,
+      //          (UINT32)strlen(OWNER_SECRET),(BYTE*)OWNER_SECRET);
+    result = Tspi_Policy_SetSecret(srkPolicy, TSS_SECRET_MODE_SHA1,
+                (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error Setting SRK Password %s \n", Trspi_Error_String(result));
         return result;
     }
-
     //
     // Take ownership of the TPM
     // We expect the TPM to have an EK so Passing the third arg as 0.

@@ -34,6 +34,12 @@ int tpm_aik_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
 
     TSS_UUID SRK_UUID = TSS_UUID_SRK;
     int result;
+    BYTE tpm_key[KEY_SIZE];    
+    
+    if ((result = read_tpm_key(tpm_key,KEY_SIZE)) != 0) {
+        syslog(LOG_ERR, "TPM Key Not Found \n");
+        return TSS_E_FAIL;
+    }
 
     result = Tspi_Context_Create(hContext); 
     if (result != TSS_SUCCESS) {
@@ -58,8 +64,8 @@ int tpm_aik_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
         return result;
     }
 
-    result = Tspi_Policy_SetSecret((*hSrkPolicy), TSS_SECRET_MODE_PLAIN,
-            strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); 
+    result = Tspi_Policy_SetSecret(*hSrkPolicy, TSS_SECRET_MODE_SHA1,
+                (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Policy_SetSecret(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -84,8 +90,8 @@ int tpm_aik_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
         return result;
     }
 
-    result = Tspi_Policy_SetSecret((*hTPMPolicy), TSS_SECRET_MODE_PLAIN,
-            strlen(OWNER_SECRET), (BYTE*)OWNER_SECRET); 
+    result = Tspi_Policy_SetSecret((*hTPMPolicy), TSS_SECRET_MODE_SHA1,
+                (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_SetSecret failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -139,8 +145,8 @@ int generate_aik(char *aik_blob_path)
         return result;
     }
     
-    if (access("/opt/xensource/tpm/aiktpmblob",R_OK)) {
-        syslog(LOG_INFO, "Take Ownership aikblob already present \n");
+    if ((result = access("/opt/xensource/tpm/aiktpmblob",R_OK)) == 0) {
+        syslog(LOG_INFO, "Aikblob already present when taking ownership \n");
     }
 
     result = tpm_aik_context(&hContext, &hTPM, &hSRK, 
@@ -429,31 +435,6 @@ int get_aik_tcpa(char *aik_blob_path)
         return result;
     }
 
-    return 0;
-}
-
-int print_base64(void* data, UINT32 len)
-{
-
-    BIO *bmem, *b64;
-    BUF_MEM *bptr;
-    b64 = BIO_new(BIO_f_base64());
-    bmem = BIO_new(BIO_s_mem());
-    b64 = BIO_push(b64, bmem);
-    BIO_write(b64, data, len);
-    BIO_flush(b64);
-    BIO_get_mem_ptr(b64, &bptr);
-    char *b64Buff = (char*)malloc(bptr->length);
-    
-    if (!b64Buff) {
-        syslog(LOG_ERR, "Error in aik context for free %s and %d ",__FILE__,__LINE__);
-        return 1;
-    } 
-    memcpy(b64Buff, bptr->data, bptr->length-1);
-    b64Buff[bptr->length-1] = 0;
-    BIO_free_all(b64);
-    printf(b64Buff);
-    free(b64Buff);
     return 0;
 }
 

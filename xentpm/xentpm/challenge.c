@@ -52,6 +52,7 @@ int tpm_challenge(char *aik_blob_path, char *challenge)
     UINT32 symLen;
     int	result;
     BIO *bmem, *b64;
+    BYTE tpm_key[KEY_SIZE];    
 
     syslog(LOG_INFO, "Recieved a Challange");
 
@@ -60,7 +61,10 @@ int tpm_challenge(char *aik_blob_path, char *challenge)
         syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
         return result;
     }
-
+    if ((result = read_tpm_key(tpm_key,KEY_SIZE)) != 0) {
+        syslog(LOG_ERR, "TPM Key Not Found \n");
+        return TSS_E_FAIL;
+    }
     result = Tspi_Context_Create(&hContext);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Context_Create failed with 0x%X %s", result, Trspi_Error_String(result));
@@ -86,8 +90,8 @@ int tpm_challenge(char *aik_blob_path, char *challenge)
         return result;
     }
 
-    result = Tspi_Policy_SetSecret(hSrkPolicy, TSS_SECRET_MODE_PLAIN,
-                strlen(OWNER_SECRET), OWNER_SECRET); 
+    result = Tspi_Policy_SetSecret(hSrkPolicy, TSS_SECRET_MODE_SHA1,
+                (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Policy_SetSecret(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -112,8 +116,8 @@ int tpm_challenge(char *aik_blob_path, char *challenge)
         return result;
     }
 
-    result = Tspi_Policy_SetSecret(hTPMPolicy, TSS_SECRET_MODE_PLAIN,
-                strlen(OWNER_SECRET), OWNER_SECRET); 
+    result = Tspi_Policy_SetSecret(hTPMPolicy, TSS_SECRET_MODE_SHA1,
+                (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Policy_SetSecret(TPM) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -175,21 +179,6 @@ int tpm_challenge(char *aik_blob_path, char *challenge)
         syslog(LOG_ERR, "Tspi_TPM_ActivateIdentity failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
     }
-
-    // Base64 encode the response to send back to the caller
-    /*BUF_MEM *bptr;
-    b64 = BIO_new(BIO_f_base64());
-    bmem = BIO_new(BIO_s_mem());
-    b64 = BIO_push(b64, bmem);
-    BIO_write(b64, response, responseLen);
-    BIO_flush(b64);
-    BIO_get_mem_ptr(b64, &bptr);
-    char *responseBuf = (char*)malloc(bptr->length);
-    memcpy(responseBuf, bptr->data, bptr->length-1);
-    responseBuf[bptr->length-1] = 0;
-    BIO_free_all(b64);
-    printf(responseBuf);
-    free(responseBuf);*/
 
     if ((result = print_base64(response,responseLen)) != 0) {
         syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
