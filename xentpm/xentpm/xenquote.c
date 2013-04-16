@@ -44,7 +44,7 @@
 
 #include "xentpm.h" 
 #include <arpa/inet.h>
-static void sha1(TSS_HCONTEXT hContext, void *buf, UINT32 bufLen, BYTE *digest);
+static void sha1(TSS_HCONTEXT hContext, void *shaBuf, UINT32 shaBufLen, BYTE *digest);
 
 int
 tpm_quote(char *nonce, char *aik_blob_file)
@@ -63,15 +63,19 @@ tpm_quote(char *nonce, char *aik_blob_file)
     UINT32 npcrMax;
     UINT32 npcrBytes;
     UINT32 npcrs = 0;
-    BYTE *buf;
-    UINT32 bufLen;
+    BYTE *quoteBuf;
+    UINT32 quoteBufLen;
+    BYTE *aikBlob;
+    UINT32 aikBlobLen;
     BYTE *bPointer;
-    BYTE *tmpbuf;
-    UINT32 tmpbufLen;
+    BYTE *apiBuf;
+    UINT32 apiBufLen;
     BYTE nonceHash[20];
     BYTE pcrHash[20];
     BIO *bmem, *b64;
     BYTE tpm_key[KEY_SIZE];    
+    BYTE* nonceBuf ;
+    UINT32 nonceBufLen;
     int	i;
     int	result;
 
@@ -128,18 +132,18 @@ tpm_quote(char *nonce, char *aik_blob_file)
 
     // Base64 decode the nonce
 
-    bufLen = strlen(nonce);
-    BYTE* nonceBuf = (BYTE*)malloc(bufLen);
+    nonceBufLen = strlen(nonce);
+    nonceBuf = (BYTE*)malloc(nonceBufLen);
     if (!nonceBuf) {
         syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
         return 1;
     }
-    memset(nonceBuf, 0, bufLen);
+    memset(nonceBuf, 0, nonceBufLen);
     b64 = BIO_new(BIO_f_base64());
     BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
-    bmem = BIO_new_mem_buf(nonce, bufLen);
+    bmem = BIO_new_mem_buf(nonce, nonceBufLen);
     bmem = BIO_push(b64, bmem);
-    int nonceLen = BIO_read(bmem, nonceBuf, bufLen);
+    int nonceLen = BIO_read(bmem, nonceBuf, nonceBufLen);
     BIO_free_all(bmem);
 
     // Hash the nonce
@@ -152,39 +156,39 @@ tpm_quote(char *nonce, char *aik_blob_file)
         return 1;
     }
     fseek(f_in, 0, SEEK_END);
-    bufLen = ftell(f_in);
+    aikBlobLen = ftell(f_in);
     fseek(f_in, 0, SEEK_SET);
-    buf = malloc(bufLen);
+    aikBlob = malloc(aikBlobLen);
     
-    if (!buf) {
+    if (!aikBlob) {
         syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
         return 1;
     }
 
-    if (fread(buf, 1, bufLen, f_in) != bufLen) {
+    if (fread(aikBlob, 1, aikBlobLen, f_in) != aikBlobLen) {
         syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_file);
         return 1;
     }
     fclose(f_in);
     
-    result = Tspi_Context_LoadKeyByBlob(hContext, hSRK, bufLen, buf, &hAIK); 
+    result = Tspi_Context_LoadKeyByBlob(hContext, hSRK, aikBlobLen, aikBlob, &hAIK); 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
     }
-
+    free(aikBlob);
     // Create PCR list to be quoted 
     // We will quote all the PCR's
     tpmPCRProp = TSS_TPMCAP_PROP_PCR;
     result = Tspi_TPM_GetCapability(hTPM, TSS_TPMCAP_PROPERTY,
-		sizeof(tpmPCRProp), (BYTE *)&tpmPCRProp, &tmpbufLen, &tmpbuf); 
+		sizeof(tpmPCRProp), (BYTE *)&tpmPCRProp, &apiBufLen, &apiBuf); 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_TPM_GetCapability failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
     }
 
-    npcrMax = *(UINT32 *)tmpbuf;
-    Tspi_Context_FreeMemory(hContext, tmpbuf);
+    npcrMax = *(UINT32 *)apiBuf;
+    Tspi_Context_FreeMemory(hContext, apiBuf);
     npcrBytes = (npcrMax + 7) / 8; // PCR MASK
     result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_PCRS,
 		TSS_PCRS_STRUCT_INFO, &hPCRs); 
@@ -205,17 +209,17 @@ tpm_quote(char *nonce, char *aik_blob_file)
     //   3)uint32 QuoteSize       //  Quotes 
     //   4)BYTE *Quote (PCR Quote readable in Text)
     
-    buf = malloc((2 + npcrBytes + 4 + 20 * npcrMax));
+    quoteBuf = malloc((2 + npcrBytes + 4 + 20 * npcrMax));
     
-    if (!buf) {
+    if (!quoteBuf) {
         syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
         return 1;
     }
     
-    *(UINT16 *)buf = htons(npcrBytes);
+    *(UINT16 *)quoteBuf = htons(npcrBytes);
     
     for (i=0; i<npcrBytes; i++)
-        buf[2+i] = 0;
+        quoteBuf[2+i] = 0;
 
     for (i=0; i<npcrMax; i++) {
         long pcr = i ;
@@ -226,7 +230,7 @@ tpm_quote(char *nonce, char *aik_blob_file)
         }
 
         ++npcrs;
-        buf[2+(pcr/8)] |= 1 << (pcr%8);
+        quoteBuf[2+(pcr/8)] |= 1 << (pcr%8);
     }
 
     // Perform Quote
@@ -239,33 +243,33 @@ tpm_quote(char *nonce, char *aik_blob_file)
     quoteInfo = (TPM_QUOTE_INFO *)valid.rgbData;
 
     // Fill in the PCR buffer
-    bPointer = buf + 2 + npcrBytes;
+    bPointer = quoteBuf + 2 + npcrBytes;
     *(UINT32 *)bPointer = htonl (20*npcrs);
     bPointer += sizeof(UINT32);
     for (i=0; i<=npcrMax; i++) {
-        if (buf[2+(i/8)] & (1 << (i%8))) {
-            result = Tspi_PcrComposite_GetPcrValue(hPCRs,i, &tmpbufLen,
-                     &tmpbuf);
+        if (quoteBuf[2+(i/8)] & (1 << (i%8))) {
+            result = Tspi_PcrComposite_GetPcrValue(hPCRs,i, &apiBufLen,
+                     &apiBuf);
             if (result != TSS_SUCCESS) {
                 syslog(LOG_ERR, "Tspi_PcrComposite_GetPcrValue failed with 0x%X %s", 
                         result, Trspi_Error_String(result));
                 return result;
             }
-            memcpy (bPointer, tmpbuf, tmpbufLen);
-            bPointer += tmpbufLen;
-            Tspi_Context_FreeMemory(hContext, tmpbuf);
+            memcpy (bPointer, apiBuf, apiBufLen);
+            bPointer += apiBufLen;
+            Tspi_Context_FreeMemory(hContext, apiBuf);
         }
     }
-    bufLen = bPointer - buf;
+    quoteBufLen = bPointer - quoteBuf;
 
     // Test the hash before sending to client
-    sha1(hContext, buf, bufLen, pcrHash);
+    sha1(hContext, quoteBuf, quoteBufLen, pcrHash);
     if (memcmp(pcrHash, quoteInfo->compositeHash.digest, sizeof(pcrHash)) != 0) {
         // Try with smaller digest length 
-        *(UINT16 *)buf = htons(npcrBytes-1);
-        memmove(buf+2+npcrBytes-1, buf+2+npcrBytes, bufLen-2-npcrBytes);
-        bufLen -= 1;
-        sha1(hContext, buf, bufLen, pcrHash);
+        *(UINT16 *)quoteBuf = htons(npcrBytes-1);
+        memmove(quoteBuf+2+npcrBytes-1, quoteBuf+2+npcrBytes, quoteBufLen-2-npcrBytes);
+        quoteBufLen -= 1;
+        sha1(hContext, quoteBuf, quoteBufLen, pcrHash);
         if (memcmp(pcrHash, quoteInfo->compositeHash.digest, sizeof(pcrHash)) != 0) {
             syslog(LOG_ERR, "Inconsistent PCR hash in output of quote\n");
             return 1;
@@ -289,15 +293,15 @@ tpm_quote(char *nonce, char *aik_blob_file)
     //
     
     // Tack on the rgbValidationData onto the end of the quote buffer
-    buf = realloc(buf, bufLen + valid.ulValidationDataLength);
+    quoteBuf = realloc(quoteBuf, quoteBufLen + valid.ulValidationDataLength);
 
-    if (!buf) {
+    if (!quoteBuf) {
         syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
         return 1;
     }
 
-    memcpy(&buf[bufLen], valid.rgbValidationData, valid.ulValidationDataLength);
-    bufLen += valid.ulValidationDataLength;
+    memcpy(&quoteBuf[quoteBufLen], valid.rgbValidationData, valid.ulValidationDataLength);
+    quoteBufLen += valid.ulValidationDataLength;
 
     // Base64 encode the response to send back to the caller
     /*BUF_MEM *bptr;
@@ -314,7 +318,7 @@ tpm_quote(char *nonce, char *aik_blob_file)
     printf(quoteBuf);
     free(quoteBuf);*/
 
-    if ((result = print_base64(buf,bufLen)) != 0) {
+    if ((result = print_base64(quoteBuf,quoteBufLen)) != 0) {
         syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
         return 1;
     }
@@ -336,17 +340,17 @@ tpm_quote(char *nonce, char *aik_blob_file)
 }
 
 static void
-sha1(TSS_HCONTEXT hContext, void *buf, UINT32 bufLen, BYTE *digest)
+sha1(TSS_HCONTEXT hContext, void *shaBuf, UINT32 shaBufLen, BYTE *digest)
 {
     TSS_HHASH hHash;
-    BYTE *tmpbuf;
-    UINT32 tmpbufLen;
+    BYTE *apiBuf;
+    UINT32 apiBufLen;
 
     Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_HASH,
 		TSS_HASH_DEFAULT, &hHash);
-    Tspi_Hash_UpdateHashValue(hHash, bufLen, (BYTE *)buf);
-    Tspi_Hash_GetHashValue(hHash, &tmpbufLen, &tmpbuf);
-    memcpy (digest, tmpbuf, tmpbufLen);
-    Tspi_Context_FreeMemory(hContext, tmpbuf);
+    Tspi_Hash_UpdateHashValue(hHash, shaBufLen, (BYTE *)shaBuf);
+    Tspi_Hash_GetHashValue(hHash, &apiBufLen, &apiBuf);
+    memcpy (digest, apiBuf, apiBufLen);
+    Tspi_Context_FreeMemory(hContext, apiBuf);
     Tspi_Context_CloseObject(hContext, hHash);
 }
