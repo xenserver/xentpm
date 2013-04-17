@@ -61,7 +61,7 @@ static int get_key_bytes(unsigned char * md, unsigned char * buf)
     int i;
     char t1;
     char t2;
-    for (i=0; i< KEY_SIZE; i++) {
+    for (i = 0; i < KEY_SIZE; i++) {
         t1 = get_val(buf[i*2]);    
         t2 = get_val(buf[i*2+1]);
         if( t1 < 0 || t2 < 0) {

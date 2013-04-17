@@ -69,19 +69,22 @@ int take_ownership()
      
     result = Tspi_Context_Create(&hContext);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_Create Unable to connect\n", result);
+        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_Create Unable to connect %s \n", 
+            result,Trspi_Error_String(result));
         return result;
     }
     //Connect to Local Troursers URI=NULL
     result = Tspi_Context_Connect(hContext, NULL);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_Connect Unable to connect\n", result);
+        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_Connect Unable to connect %s \n", 
+            result,Trspi_Error_String(result));
         return result;
     }
 
     result = Tspi_Context_GetTpmObject(hContext, &hTPM);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_INFO, "Error 0x%x on Tspi_Context_GetTpmObject\n", result);
+        syslog(LOG_INFO, "Error 0x%x on Tspi_Context_GetTpmObject %s \n", 
+            result,Trspi_Error_String(result));
         return result;
     }
 
@@ -90,7 +93,8 @@ int take_ownership()
     //
     result = Tspi_GetPolicyObject(hTPM, TSS_POLICY_USAGE, &tpmPolicy);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error 0x%x on Tspi_GetPolicyObject\n", result);
+        syslog(LOG_ERR, "Error 0x%x on Tspi_GetPolicyObject\n", 
+            result,Trspi_Error_String(result));
         return result;
     }
 
@@ -106,7 +110,8 @@ int take_ownership()
     fSrkAttrs = TSS_KEY_TSP_SRK | TSS_KEY_AUTHORIZATION;
     result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_RSAKEY, fSrkAttrs, &hSRK);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_CreateObject\n", result);
+        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_CreateObject %s \n",
+            result,Trspi_Error_String(result));
         return result;
     }
 
@@ -115,7 +120,8 @@ int take_ownership()
     //
     result = Tspi_GetPolicyObject(hSRK, TSS_POLICY_USAGE, &srkPolicy);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error 0x%x on Tspi_GetPolicyObject\n", result);
+        syslog(LOG_ERR, "Error 0x%x on Tspi_GetPolicyObject %s \n", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
