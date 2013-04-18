@@ -124,28 +124,10 @@ int tpm_challenge(char *aik_blob_path, char *challenge)
     }
 
 
-    // Read AIK blob
-    if ((f_in = fopen(aik_blob_path, "rb")) == NULL) {
-        syslog(LOG_ERR, "Unable to open file %s\n", aik_blob_path);
-        return 1;
-    }
-    fseek(f_in, 0, SEEK_END);
-    bufLen = ftell(f_in);
-    fseek(f_in, 0, SEEK_SET);
-    buf = malloc(bufLen);
-    if (fread(buf, 1, bufLen, f_in) != bufLen) {
+    if ( (result = load_aik_tpm(aik_blob_path, hContext,  hSRK, &hAIK)) != 0) {
         syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
-        return 1;
-    }
-    fclose(f_in);
-
-    result = Tspi_Context_LoadKeyByBlob(hContext, hSRK, bufLen, buf, &hAIK); 
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlok(AIK) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
     }
-
-    free(buf);
 
     // Base64 decode the challenge
     bufLen = strlen(challenge);

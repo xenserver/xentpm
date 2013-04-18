@@ -20,60 +20,35 @@
  * replay of old Quote output. If no file is specified the challenge is zeros.
  */
 
-/*
- * Copyright (c) 2009 Hal Finney
- * 
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- * 
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
-
 #include "xentpm.h" 
 #include <arpa/inet.h>
 static void sha1(TSS_HCONTEXT hContext, void *shaBuf, UINT32 shaBufLen, BYTE *digest);
 
+
 int
-tpm_quote(char *nonce, char *aik_blob_file)
+tpm_quote(char *nonce, char *aik_blob_path)
 {
     TSS_HCONTEXT hContext;
     TSS_HTPM hTPM;
     TSS_HKEY hSRK;
     TSS_HKEY hAIK;
     TSS_HPOLICY	hSrkPolicy;
+    TSS_HPOLICY	hTPMPolicy;
     TSS_HPCRS hPCRs;
-    TSS_UUID SRK_UUID = TSS_UUID_SRK;
     TSS_VALIDATION valid; //quote validation structure
     TPM_QUOTE_INFO *quoteInfo; 
-    FILE *f_in;
     UINT32 tpmPCRProp;
     UINT32 npcrMax;
     UINT32 npcrBytes;
     UINT32 npcrs = 0;
     BYTE *quoteBuf;
     UINT32 quoteBufLen;
-    BYTE *aikBlob;
-    UINT32 aikBlobLen;
     BYTE *bPointer;
     BYTE *apiBuf;
     UINT32 apiBufLen;
     BYTE nonceHash[20];
     BYTE pcrHash[20];
     BIO *bmem, *b64;
-    BYTE tpm_key[KEY_SIZE];    
     BYTE* nonceBuf ;
     UINT32 nonceBufLen;
     int	i;
@@ -87,46 +62,11 @@ tpm_quote(char *nonce, char *aik_blob_file)
         return result;
     }
     
-    if ((result = read_tpm_key(tpm_key,KEY_SIZE)) != 0) {
-        syslog(LOG_ERR, "TPM Key Not Found \n");
-        return TSS_E_FAIL;
-    }
+    result = tpm_create_context(&hContext, &hTPM, &hSRK, 
+            &hTPMPolicy, &hSrkPolicy); 
 
-    result = Tspi_Context_Create(&hContext); 
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_Create failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-
-    result = Tspi_Context_Connect(hContext, NULL); 
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_Connect failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-
-    result = Tspi_Context_LoadKeyByUUID(hContext,
-			TSS_PS_TYPE_SYSTEM, SRK_UUID, &hSRK); 
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_LoadKeyByUUID(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-
-    result = Tspi_GetPolicyObject (hSRK, TSS_POLICY_USAGE, &hSrkPolicy); 
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_GetPolicyObject(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-
-    result = Tspi_Policy_SetSecret(hSrkPolicy, TSS_SECRET_MODE_SHA1,
-                (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Policy_SetSecret(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-
-    result = Tspi_Context_GetTpmObject (hContext, &hTPM); 
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_GetTpmObject failed with 0x%X %s", result, Trspi_Error_String(result));
+    if(result != TSS_SUCCESS ) {
+        syslog(LOG_ERR, "Error in aik context for generating aik_pem");
         return result;
     }
 
@@ -150,33 +90,13 @@ tpm_quote(char *nonce, char *aik_blob_file)
     sha1(hContext, nonceBuf, nonceLen, nonceHash);
     free(nonceBuf);
 
-    // Read AIK blob
-    if ((f_in = fopen(aik_blob_file, "rb")) == NULL) {
-        syslog(LOG_ERR, "Unable to open file %s\n", aik_blob_file);
-        return 1;
-    }
-    fseek(f_in, 0, SEEK_END);
-    aikBlobLen = ftell(f_in);
-    fseek(f_in, 0, SEEK_SET);
-    aikBlob = malloc(aikBlobLen);
-    
-    if (!aikBlob) {
-        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
-        return 1;
-    }
 
-    if (fread(aikBlob, 1, aikBlobLen, f_in) != aikBlobLen) {
-        syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_file);
-        return 1;
-    }
-    fclose(f_in);
-    
-    result = Tspi_Context_LoadKeyByBlob(hContext, hSRK, aikBlobLen, aikBlob, &hAIK); 
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", result, Trspi_Error_String(result));
+    if ( (result = load_aik_tpm(aik_blob_path, hContext,  hSRK, &hAIK)) != 0) {
+        syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
         return result;
     }
-    free(aikBlob);
+
+    
     // Create PCR list to be quoted 
     // We will quote all the PCR's
     tpmPCRProp = TSS_TPMCAP_PROP_PCR;
@@ -199,6 +119,22 @@ tpm_quote(char *nonce, char *aik_blob_file)
 
 	
     // Create TSS_VALIDATION struct for Quote
+    /*
+    typedef struct tdTSS_VALIDATION
+    { 
+        TSS_VERSION  versionInfo;
+        UINT32       ulExternalDataLength; //nonce len
+        BYTE*        rgbExternalData; // nonce data
+        UINT32       ulDataLength; //sizeof quote_info
+         BYTE*     rgbData; //tpm_quote_info
+        UINT32    ulValidationDataLength;
+        BYTE*     rgbValidationData;
+    } TSS_VALIDATION;
+    */
+
+
+ 
+    
     valid.ulExternalDataLength = sizeof(nonceHash);
     valid.rgbExternalData = nonceHash;
 
@@ -303,21 +239,6 @@ tpm_quote(char *nonce, char *aik_blob_file)
     memcpy(&quoteBuf[quoteBufLen], valid.rgbValidationData, valid.ulValidationDataLength);
     quoteBufLen += valid.ulValidationDataLength;
 
-    // Base64 encode the response to send back to the caller
-    /*BUF_MEM *bptr;
-    b64 = BIO_new(BIO_f_base64());
-    bmem = BIO_new(BIO_s_mem());
-    b64 = BIO_push(b64, bmem);
-    BIO_write(b64, buf, bufLen);
-    BIO_flush(b64);
-    BIO_get_mem_ptr(b64, &bptr);
-    char *quoteBuf = (char*)malloc(bptr->length);
-    memcpy(quoteBuf, bptr->data, bptr->length-1);
-    quoteBuf[bptr->length-1] = 0;
-    BIO_free_all(b64);
-    printf(quoteBuf);
-    free(quoteBuf);*/
-
     if ((result = print_base64(quoteBuf,quoteBufLen)) != 0) {
         syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
         return 1;
@@ -325,17 +246,13 @@ tpm_quote(char *nonce, char *aik_blob_file)
 
     syslog(LOG_INFO, "Generate TPM Quote Success!\n");
     
-    result = Tspi_Context_FreeMemory (hContext,NULL);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_FreeMemory failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-    result = Tspi_Context_Close(hContext);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_Close failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
 
+    result = tpm_free_context(hContext,hTPMPolicy);
+
+    if (result != TSS_SUCCESS ) {
+        syslog(LOG_ERR, "Error in aik context for free %s and %d ",__FILE__,__LINE__);
+        return result;
+    }
     return 0;
 }
 

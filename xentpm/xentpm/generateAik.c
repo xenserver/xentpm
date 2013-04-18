@@ -3,32 +3,11 @@
  *      Publish AIK public key in PEM format and TCPA blob format
  */
 
-/*
- * Copyright (c) 2009 Hal Finney
- * 
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- * 
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
-
 #include "xentpm.h"
 #include <unistd.h>
 
-int tpm_aik_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
+
+int tpm_create_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
         TSS_HPOLICY *hTPMPolicy, TSS_HPOLICY *hSrkPolicy) 
 {
 
@@ -100,7 +79,7 @@ int tpm_aik_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
     return TSS_SUCCESS;
 }
 
-int tpm_aik_context_free(TSS_HCONTEXT hContext,
+int tpm_free_context(TSS_HCONTEXT hContext,
         TSS_HPOLICY hTPMPolicy)
 {
     int result ;
@@ -149,7 +128,7 @@ int generate_aik(char *aik_blob_path)
         syslog(LOG_INFO, "Aikblob already present when taking ownership \n");
     }
 
-    result = tpm_aik_context(&hContext, &hTPM, &hSRK, 
+    result = tpm_create_context(&hContext, &hTPM, &hSRK, 
             &hTPMPolicy, &hSrkPolicy); 
 
     if (result != TSS_SUCCESS) {
@@ -231,7 +210,7 @@ int generate_aik(char *aik_blob_path)
         return result;
     }
 
-    result = tpm_aik_context_free(hContext,hTPMPolicy);
+    result = tpm_free_context(hContext,hTPMPolicy);
 
     if (result != TSS_SUCCESS ) {
         syslog(LOG_ERR, "Error in aik context for free %s and %d ",__FILE__,__LINE__);
@@ -272,7 +251,7 @@ int get_aik_pem(char *aik_blob_path)
         return result;
     }
 
-    result = tpm_aik_context(&hContext, &hTPM, &hSRK, 
+    result = tpm_create_context(&hContext, &hTPM, &hSRK, 
             &hTPMPolicy, &hSrkPolicy); 
 
     if(result != TSS_SUCCESS ) {
@@ -332,7 +311,7 @@ int get_aik_pem(char *aik_blob_path)
     PEM_write_RSA_PUBKEY(stdout, aikPubKey);
     RSA_free(aikPubKey);
 
-    result = tpm_aik_context_free(hContext,hTPMPolicy);
+    result = tpm_free_context(hContext,hTPMPolicy);
 
     if (result != TSS_SUCCESS ) {
         syslog(LOG_ERR, "Error in aik context for free %s and %d ",__FILE__,__LINE__);
@@ -368,7 +347,7 @@ int get_aik_tcpa(char *aik_blob_path)
         syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
         return result;
     }
-    result = tpm_aik_context(&hContext, &hTPM, &hSRK, 
+    result = tpm_create_context(&hContext, &hTPM, &hSRK, 
             &hTPMPolicy, &hSrkPolicy); 
 
     if(result != TSS_SUCCESS) {
@@ -408,27 +387,12 @@ int get_aik_tcpa(char *aik_blob_path)
         return result;
     }
 
-   /* BIO *bmem, *b64;
-    BUF_MEM *bptr;
-    b64 = BIO_new(BIO_f_base64());
-    bmem = BIO_new(BIO_s_mem());
-    b64 = BIO_push(b64, bmem);
-    BIO_write(b64, tcpaKeyblob, tcpaKeyblobLen);
-    BIO_flush(b64);
-    BIO_get_mem_ptr(b64, &bptr);
-    char *buff = (char*)malloc(bptr->length);
-    memcpy(buff, bptr->data, bptr->length-1);
-    buff[bptr->length-1] = 0;
-    BIO_free_all(b64);
-    printf(buff);
-    free(buff);*/
-    
     if ((result = print_base64(tcpaKeyblob,tcpaKeyblobLen)) != 0) {
         syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
         return 1;
     }
     
-    result = tpm_aik_context_free(hContext,hTPMPolicy);
+    result = tpm_free_context(hContext,hTPMPolicy);
 
     if (result != TSS_SUCCESS ) {
         syslog(LOG_ERR, "Error in aik context for free %s and %d ",__FILE__,__LINE__);

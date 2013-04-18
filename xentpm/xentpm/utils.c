@@ -86,3 +86,46 @@ static char get_val(char c)
     return result;
 }
 
+int load_aik_tpm(char * aik_blob_path, TSS_HCONTEXT hContext,
+        TSS_HKEY hSRK, TSS_HKEY* hAIK)
+{
+    FILE *f_in;
+    BYTE *aikBlob;
+    UINT32 aikBlobLen;
+    int	result;
+    
+    if ((f_in = fopen(aik_blob_path, "rb")) == NULL) {
+        syslog(LOG_ERR, "Unable to open file %s\n", aik_blob_path);
+        return 1;
+    }
+    fseek(f_in, 0, SEEK_END);
+    aikBlobLen = ftell(f_in);
+    fseek(f_in, 0, SEEK_SET);
+    aikBlob = malloc(aikBlobLen);
+    
+    if (!aikBlob) {
+        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
+        return 1;
+    }
+
+    if (fread(aikBlob, 1, aikBlobLen, f_in) != aikBlobLen) {
+        syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
+        return 1;
+    }
+    fclose(f_in);
+    
+    result = Tspi_Context_LoadKeyByBlob(hContext, hSRK, aikBlobLen, aikBlob, hAIK); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+    
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
+        return result;
+    }
+    free(aikBlob);
+    return 0;
+}
+
