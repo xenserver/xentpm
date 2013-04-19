@@ -4,11 +4,11 @@ Version: %{?version}%{!?version:1.0}
 Release: %{?release}%{!?release:1}
 License: CPL
 Group: System/Security
-Source: %{name}.tar.gz
+Source: %{name}-%{version}.tar.gz
 URL: http://www.citrix.com
 Vendor: @COMPANY_NAME_LEGAL@
 Requires: trousers
-BuildRoot: %{_tmppath}/%{name}-buildroot
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 
 %define  debug_package %{nil}
 
@@ -19,13 +19,13 @@ BuildRoot: %{_tmppath}/%{name}-buildroot
 
 
 %build
-make 
+%{__make}
 
 #%patch
 
 %install
 echo Starting install section
-make install prefix=%{_builddir}
+%{__make} install prefix=%{_builddir}
 
 rm -rf %{buildroot}
 mkdir -p %{buildroot}/opt/xensource/tpm
@@ -33,7 +33,6 @@ mkdir -p %{buildroot}/etc/xapi.d/plugins
 
 cp %{_builddir}/opt/xensource/tpm/* %{buildroot}/opt/xensource/tpm/
 cp %{_builddir}/etc/xapi.d/plugins/* %{buildroot}/etc/xapi.d/plugins/
-
 
 %post -p /sbin/ldconfig
 %postun -p /sbin/ldconfig
