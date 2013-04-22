@@ -10,6 +10,7 @@
 #include <tss/tss_defines.h>
 #include <openssl/x509.h>
 #include <openssl/pem.h>
+#include <openssl/sha.h>
 #include <trousers/trousers.h>
 
 #define KEY_FILE "/opt/xensource/tpm/tpm_key"

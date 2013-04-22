@@ -10,11 +10,11 @@ usage()
     printf("           --take_ownership |\n");
     printf("           --get_ekey |\n");
     printf("           --get_ekcert |\n");
-    printf("           --gen_aik <aikblobfile>\n");
-    printf("           --get_aik_pem <aikblobfile>\n");
-    printf("           --get_aik_tcpa <aikblobfile>\n");
-    printf("           --tpm_challenge <aikblobfile> <challenge>\n");
-    printf("           --tpm_quote <nonce> <aikblobfile>\n");
+    printf("           --gen_aik <aikblobpath>\n");
+    printf("           --get_aik_pem <aikblobpath>\n");
+    printf("           --get_aik_tcpa <aikblobpath>\n");
+    printf("           --tpm_challenge <aikblobpath> <challenge>\n");
+    printf("           --tpm_quote <nonce> <aikblobpath>\n");
 }
 
 #define MAX_ARG_SIZE 1024
@@ -23,8 +23,7 @@ int main(int argc, char *argv[])
 {
     int opt= 0;
     int status = 0;
-    char max_arg_buffer[MAX_ARG_SIZE];
-    
+   
     openlog("xentpm", LOG_PID, LOG_USER);
     static struct option long_options[] = {
         {"tpm_owned",      no_argument, 0, 'o' },
@@ -111,15 +110,13 @@ int main(int argc, char *argv[])
                     goto clean;
                 }   
                 //external API call
-                // do sanitation of the argument2 that is challange
                 if (!argv[optind]) {
-                    syslog(LOG_INFO, "Invalid challange argument to TPM");
+                    //syslog(LOG_INFO, "Invalid challange argument to TPM");
+                    // TODO return error for invalid args 
                     status = 1;
                    goto clean;
                 }
-                memset(max_arg_buffer,'\0',MAX_ARG_SIZE);
-                strncpy(max_arg_buffer,argv[optind],MAX_ARG_SIZE);
-                status = tpm_challenge(optarg, max_arg_buffer);
+                status = tpm_quote(optarg,argv[optind]);
                 break;
             case 'q' :  
                 if (optind >= argc ) {
@@ -128,13 +125,12 @@ int main(int argc, char *argv[])
                     goto clean;
                 }   
                 if (!argv[optind]) {
-                    syslog(LOG_INFO, "Invalid nonce to TPM");
+                    //syslog(LOG_INFO, "Invalid nonce to TPM");
+                    // TODO return error code
                     status = 1;
                    goto clean;
                 }
-                memset(max_arg_buffer,'\0',MAX_ARG_SIZE);
-                strncpy(max_arg_buffer,argv[optind],MAX_ARG_SIZE);
-                status = tpm_quote(optarg,max_arg_buffer);
+                status = tpm_quote(optarg,argv[optind]);
                 break;
             default: 
                 usage();

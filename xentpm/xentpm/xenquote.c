@@ -46,8 +46,8 @@ tpm_quote(char *nonce, char *aik_blob_path)
     BYTE *bPointer;
     BYTE *apiBuf;
     UINT32 apiBufLen;
-    BYTE nonceHash[20];
-    BYTE pcrHash[20];
+    BYTE nonceHash[SHA_DIGEST_LENGTH];
+    BYTE pcrHash[SHA_DIGEST_LENGTH];
     BIO *bmem, *b64;
     BYTE* nonceBuf ;
     UINT32 nonceBufLen;
@@ -118,30 +118,10 @@ tpm_quote(char *nonce, char *aik_blob_path)
     }
 
 	
-    // Create TSS_VALIDATION struct for Quote
-    /*
-    typedef struct tdTSS_VALIDATION
-    { 
-        TSS_VERSION  versionInfo;
-        UINT32       ulExternalDataLength; //nonce len
-        BYTE*        rgbExternalData; // nonce data
-        UINT32       ulDataLength; //sizeof quote_info
-         BYTE*     rgbData; //tpm_quote_info
-        UINT32    ulValidationDataLength;
-        BYTE*     rgbValidationData;
-    } TSS_VALIDATION;
-    */
-
-
- 
-    
-    valid.ulExternalDataLength = sizeof(nonceHash);
-    valid.rgbExternalData = nonceHash;
-
     // Allocate buffer for SelectMASK + Quotedata
     // Also select all the availble PCRS
     //   1)uit16 PCRSelectMAskSize //2 byets
-    //   2)BYTE* PCRSelectMast    // which pcrs selected (all)
+    //   2)BYTE* PCRSelectMask    // which pcrs selected (all)
     //   3)uint32 QuoteSize       //  Quotes 
     //   4)BYTE *Quote (PCR Quote readable in Text)
     
@@ -160,6 +140,7 @@ tpm_quote(char *nonce, char *aik_blob_path)
     for (i=0; i<npcrMax; i++) {
         long pcr = i ;
         result = Tspi_PcrComposite_SelectPcrIndex(hPCRs, pcr); 
+        
         if (result != TSS_SUCCESS) {
             syslog(LOG_ERR, "Tspi_PcrComposite_SelectPcrIndex failed with 0x%X %s", result, Trspi_Error_String(result));
             return result;
@@ -168,6 +149,46 @@ tpm_quote(char *nonce, char *aik_blob_path)
         ++npcrs;
         quoteBuf[2+(pcr/8)] |= 1 << (pcr%8);
     }
+
+    // Create TSS_VALIDATION struct for Quote
+    /*
+    typedef struct tdTSS_VALIDATION
+    { 
+        TSS_VERSION  versionInfo;
+        UINT32       ulExternalDataLength; //nonce len
+        BYTE*        rgbExternalData; // nonce data
+        UINT32       ulDataLength; //sizeof quote_info
+         BYTE*     rgbData; //tpm_quote_info
+        UINT32    ulValidationDataLength;
+        BYTE*     rgbValidationData;
+    } TSS_VALIDATION;
+    */
+
+    /* We get TPM_QUOTE_INFO struct */
+ 
+    /*    IDL Definition
+        typedef struct tdTPM_QUOTE_INFO{
+            TPM_STRUCT_VER version;
+            BYTE fixed[4];
+            TPM_COMPOSITE_HASH digestValue;
+            TPM_NONCE externalData,
+        }   TPM_QUOTE_INFO;
+  
+        Following  details from TPM SPEC 1.2
+        
+        TPM_STRUCT_VER version This MUST be 1.1.0.0
+
+        BYTE fixed This SHALL always be the string ‘QUOT’
+        TPM_COMPOSITE_HASH digestValue This SHALL be the result of i
+        the composite hash algorithm using the current values of the 
+        requested PCR indices.  
+        TPM_NONCE externalData 160 bits of externally supplied data
+    */
+                                                                                         
+
+
+    valid.ulExternalDataLength = sizeof(nonceHash);
+    valid.rgbExternalData = nonceHash;
 
     // Perform Quote
     result = Tspi_TPM_Quote(hTPM, hAIK, hPCRs, &valid);
@@ -197,20 +218,6 @@ tpm_quote(char *nonce, char *aik_blob_path)
         }
     }
     quoteBufLen = bPointer - quoteBuf;
-
-    // Test the hash before sending to client
-    sha1(hContext, quoteBuf, quoteBufLen, pcrHash);
-    if (memcmp(pcrHash, quoteInfo->compositeHash.digest, sizeof(pcrHash)) != 0) {
-        // Try with smaller digest length 
-        *(UINT16 *)quoteBuf = htons(npcrBytes-1);
-        memmove(quoteBuf+2+npcrBytes-1, quoteBuf+2+npcrBytes, quoteBufLen-2-npcrBytes);
-        quoteBufLen -= 1;
-        sha1(hContext, quoteBuf, quoteBufLen, pcrHash);
-        if (memcmp(pcrHash, quoteInfo->compositeHash.digest, sizeof(pcrHash)) != 0) {
-            syslog(LOG_ERR, "Inconsistent PCR hash in output of quote\n");
-            return 1;
-        }
-    }
 
     //
     // Create quote 
