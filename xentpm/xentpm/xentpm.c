@@ -111,12 +111,11 @@ int main(int argc, char *argv[])
                 }   
                 //external API call
                 if (!argv[optind]) {
-                    //syslog(LOG_INFO, "Invalid challange argument to TPM");
                     // TODO return error for invalid args 
                     status = 1;
                    goto clean;
                 }
-                status = tpm_quote(optarg,argv[optind]);
+                status = tpm_challenge(optarg,argv[optind]);
                 break;
             case 'q' :  
                 if (optind >= argc ) {
@@ -125,7 +124,6 @@ int main(int argc, char *argv[])
                     goto clean;
                 }   
                 if (!argv[optind]) {
-                    //syslog(LOG_INFO, "Invalid nonce to TPM");
                     // TODO return error code
                     status = 1;
                    goto clean;
