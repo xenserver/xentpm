@@ -139,7 +139,7 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
         }
 
         ++npcrs;
-        quoteBuf[2+(pcr/8)] |= 1 << (pcr%8);
+        quoteBuf[sizeof(UINT16)+(pcr/8)] |= 1 << (pcr%8);
     }
 
     /* Create TSS_VALIDATION struct for Quote
@@ -186,11 +186,11 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
     quoteInfo = (TPM_QUOTE_INFO *)valid.rgbData;
 
     // Fill in the PCR buffer
-    bPointer = quoteBuf + 2 + npcrBytes;
+    bPointer = quoteBuf + sizeof(UINT16) + npcrBytes;
     *(UINT32 *)bPointer = htonl (PCR_QUOTE_LEN*npcrs);
     bPointer += sizeof(UINT32);
     for (i=0; i<=npcrMax; i++) {
-        if (quoteBuf[2+(i/8)] & (1 << (i%8))) {
+        if (quoteBuf[sizeof(UINT16)+(i/8)] & (1 << (i%8))) {
             result = Tspi_PcrComposite_GetPcrValue(hPCRs,i, &apiBufLen,
                      &apiBuf);
             if (result != TSS_SUCCESS) {

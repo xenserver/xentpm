@@ -77,7 +77,6 @@ int get_ek()
     ekRsa->n = BN_bin2bn (modulus, modulusLen, NULL);
     ekRsa->e = BN_bin2bn(exponent, exponentLen, NULL);
 
-
     PEM_write_RSA_PUBKEY(stdout, ekRsa);
     RSA_free(ekRsa);
     
@@ -126,12 +125,14 @@ int get_ekcert()
 
     result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_NV, 0, &hNV);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_CreateObject(TSS_OBJECT_TYPE_NV) failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_CreateObject(TSS_OBJECT_TYPE_NV) failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
     result = Tspi_SetAttribUint32(hNV, TSS_TSPATTRIB_NV_INDEX, 0, nvIndex);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_SetAttribUint32 failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_SetAttribUint32 failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
@@ -140,7 +141,8 @@ int get_ekcert()
 
     result = Tspi_Policy_AssignToObject(hNVPolicy, hNV);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Policy_AssignToObject failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_Policy_AssignToObject failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
@@ -162,7 +164,8 @@ int get_ekcert()
     result = Tspi_NV_ReadValue(hNV, 0, &blobLen, &blob);
 
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_NV_ReadValue failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_NV_ReadValue failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         syslog(LOG_ERR, "Unable to read EK Certificate from TPM\n");
         return result;
     }
