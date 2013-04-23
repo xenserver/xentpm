@@ -171,10 +171,10 @@ int get_config_key(const char* key, char* val, int max_val_len)
     char *v;
     int ret;
     char buffer[1024];
-    
+
     FILE* fp = fopen(CONFIG_FILE,"r");
-   
-   if(!fp) {
+
+    if(!fp) {
         syslog(LOG_ERR, "Unable to open %s for reading\n", CONFIG_FILE);
         return 1;
     }
@@ -188,10 +188,12 @@ int get_config_key(const char* key, char* val, int max_val_len)
             v = strtok(NULL, "\r\n");
             if (v) {
                 strncpy(val, v, max_val_len);
+                fclose(fp);
                 return 0;
             }
         }
     }
+    fclose(fp);
     return 1;
 }
 
