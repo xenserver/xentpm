@@ -84,7 +84,8 @@ int get_ek()
     result = tpm_free_context(hContext,hTPMPolicy);
 
     if (result != TSS_SUCCESS ) {
-        syslog(LOG_ERR, "Error in aik context for free %s and %d ",__FILE__,__LINE__);
+        syslog(LOG_ERR, "Error in aik context for free %s and %d ",
+                __FILE__,__LINE__);
         return result;
     }
     
@@ -108,8 +109,7 @@ int get_ekcert()
     BYTE *blob;
     UINT32 tag, certType;
     int result;
-    //BYTE tpm_key[KEY_SIZE];    
-
+    
     result = take_ownership();
     if (result) {
         syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
@@ -156,7 +156,9 @@ int get_ekcert()
     } TCG_PCCLIENT_STORED_CERT ;
     Minimum total 5 bytes
     */
-
+    
+#define CERT_START_OFFSET 5  // see above cert header
+    
     result = Tspi_NV_ReadValue(hNV, 0, &blobLen, &blob);
 
     if (result != TSS_SUCCESS) {
@@ -165,36 +167,29 @@ int get_ekcert()
         return result;
     }
     
-    if (blobLen < 5) // minimum len
+    if (blobLen < CERT_START_OFFSET)
         goto parseerr;
     
-    tag = (blob[0]<<8) | blob[1]; // certificate tag in first two byte
+    tag =  GET_SHORT_UINT16(blob,0);  //// certificate tag in first two byte
     
     if (tag != TCG_TAG_PCCLIENT_STORED_CERT)
         goto parseerr;
     
-    certType = blob[2];
+    certType = blob[2]; // certtype at byte 2 --see header
     
     if (certType != TCG_FULL_CERT)
         goto parseerr;
     
-    certBufLen = (blob[3]<<8) | blob[4]; // total size of the certificate
-    
-    
+    certBufLen = GET_SHORT_UINT16(blob,3);  // total size of the certificate at offset 3
 
-    offset = 5; // start at this location --see header
-    blobLen = 2;
+    offset = CERT_START_OFFSET;
 
     result = Tspi_NV_ReadValue(hNV, offset, &blobLen, &blob); 
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_NV_ReadValue failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_NV_ReadValue failed with 0x%X %s", 
+                result, Trspi_Error_String(result));
         return result;
     }
-    
-    if (blobLen < 2)
-        goto parseerr;
-    
-    tag = (blob[0]<<8) | blob[1];
    
     /* following is the certificate structure
     
@@ -203,21 +198,16 @@ int get_ekcert()
     BYTE[] cert // entire certificate
     } TCG_FULL_CERT;
 
-    typedef struct tdTCG_PARTIAL_SMALL_CERT {
-    TCG_PCCLIENT_STRUCTURE_TAG tag; // 2bytes 
-    BYTE certType //1 byte
-    UINT16 certFlags; //2 byte
-    BYTE[4] certID; // 4 bytes
-    UINT16 signatureSize; // 2 bytes
-    BYTE[] signature; // 256 bytes
-    UINT16 additionalDataSize; // 2 bytes
-    BYTE[] additionalData; // 
-    } TCG_PARTIAL_SMALL_CERT;
     */
+    
+    if (blobLen < sizeof(UINT16))
+        goto parseerr;
+    
+    tag = GET_SHORT_UINT16(blob,0); // type at offset 0
 
     if (tag == TCG_TAG_PCCLIENT_FULL_CERT) {
-        offset += 2;
-        certBufLen -= 2;
+        offset += sizeof(UINT16);
+        certBufLen -= sizeof(UINT16);
     } else 	{ /* Marker of cert structure */
             syslog(LOG_ERR, "TPM does not contain FULL CERT ");
             goto parseerr;
@@ -238,7 +228,8 @@ int get_ekcert()
             blobLen = BSIZE;
         result = Tspi_NV_ReadValue(hNV, offset, &blobLen, &blob); 
         if (result != TSS_SUCCESS) {
-            syslog(LOG_ERR, "Tspi_NV_ReadValue failed with 0x%X %s", result, Trspi_Error_String(result));
+            syslog(LOG_ERR, "Tspi_NV_ReadValue failed with 0x%X %s", 
+                    result, Trspi_Error_String(result));
             goto read_error;
         }
 
@@ -257,7 +248,8 @@ int get_ekcert()
     result = tpm_free_context(hContext,hTPMPolicy);
 
     if (result != TSS_SUCCESS ) {
-        syslog(LOG_ERR, "Error in aik context for free %s and %d ",__FILE__,__LINE__);
+        syslog(LOG_ERR, "Error in aik context for free %s and %d ",
+                __FILE__,__LINE__);
         goto read_error;
     }
 

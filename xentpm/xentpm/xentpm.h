@@ -16,6 +16,9 @@
 #define KEY_FILE "/opt/xensource/tpm/tpm_key"
 #define KEY_SIZE 20
 #define KEY_HEX_SIZE 40
+
+#define GET_SHORT_UINT16(buf,offset) ( (buf[offset] << sizeof(BYTE)) | buf[offset+1] )
+
 int generate_aik(char *aik_blob_path); 
 int get_aik_pem(char *aik_blob_path);
 int get_aik_tcpa(char *aik_blob_path); 
