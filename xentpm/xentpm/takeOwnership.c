@@ -49,7 +49,7 @@ int take_ownership()
     TSS_HKEY hSRK;
     TSS_HPOLICY srkPolicy;
     TSS_FLAG fSrkAttrs;
-    BYTE tpm_key[KEY_SIZE];    
+    BYTE tpm_key[SHA_DIGEST_LENGTH];    
     syslog(LOG_INFO, "Taking ownership of the TPM.\n");
 
 
@@ -60,7 +60,7 @@ int take_ownership()
         return 0;
     }
 
-    if ((result = read_tpm_key(tpm_key,KEY_SIZE)) != 0) {
+    if ((result = read_tpm_key(tpm_key,SHA_DIGEST_LENGTH)) != 0) {
         syslog(LOG_ERR, "TPM Key Not Found \n");
         return TSS_E_FAIL;
     }

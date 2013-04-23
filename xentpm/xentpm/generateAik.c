@@ -6,130 +6,6 @@
 #include "xentpm.h"
 #include <unistd.h>
 
-
-int  tpm_init_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM,
-            TSS_HPOLICY *hTPMPolicy) 
-{
-    int result;
-    BYTE tpm_key[KEY_SIZE];    
-    
-    if ((result = read_tpm_key(tpm_key,KEY_SIZE)) != 0) {
-        syslog(LOG_ERR, "TPM Key Not Found \n");
-        return TSS_E_FAIL;
-    }
-
-    result = Tspi_Context_Create(hContext); 
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_Create failed with 0x%X %s", 
-                result, Trspi_Error_String(result));
-        return result;
-    }
-    result = Tspi_Context_Connect((*hContext), NULL);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_Connect failed with 0x%X %s", 
-                result, Trspi_Error_String(result));
-        return result;
-    }
-
-    result = Tspi_Context_GetTpmObject((*hContext), hTPM); 
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_GetTpmObject failed with 0x%X %s", 
-                result, Trspi_Error_String(result));                                                               
-        return result;
-    }
-
-    result = Tspi_Context_CreateObject((*hContext), TSS_OBJECT_TYPE_POLICY,         
-            TSS_POLICY_USAGE, hTPMPolicy);                                          
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_CreateObject(TSS_OBJECT_TYPE_POLICY) failed \
-                with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-
-    result = Tspi_Policy_AssignToObject((*hTPMPolicy), (*hTPM));                    
-    if (result != TSS_SUCCESS) {                                                    
-        syslog(LOG_ERR, "Tspi_Policy_AssignToObject(TPM) failed with 0x%X %s", 
-                result, Trspi_Error_String(result));
-        return result;
-    }
-
-    result = Tspi_Policy_SetSecret((*hTPMPolicy), TSS_SECRET_MODE_SHA1,             
-            (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);                          
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_SetSecret failed with 0x%X %s", 
-                result, Trspi_Error_String(result));
-        return result;
-    }   
-
-    return result;
-}
-
-
-int tpm_create_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
-        TSS_HPOLICY *hTPMPolicy, TSS_HPOLICY *hSrkPolicy) 
-{
-
-    TSS_UUID SRK_UUID = TSS_UUID_SRK;
-    int result;
-    BYTE tpm_key[KEY_SIZE];    
-    
-    if ((result = read_tpm_key(tpm_key,KEY_SIZE)) != 0) {
-        syslog(LOG_ERR, "TPM Key Not Found \n");
-        return TSS_E_FAIL;
-    }
-
-    result =  tpm_init_context(hContext, hTPM, hTPMPolicy);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_Create failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-
-
-    result = Tspi_Context_LoadKeyByUUID((*hContext),
-            TSS_PS_TYPE_SYSTEM, SRK_UUID, hSRK);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_LoadKeyByUUID(TSS_PS_TYPE_SYSTEM, SRK_UUID) failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-
-    result = Tspi_GetPolicyObject((*hSRK), TSS_POLICY_USAGE, hSrkPolicy); 
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_GetPolicyObject(SRK, TSS_POLICY_USAGE) failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-
-    result = Tspi_Policy_SetSecret(*hSrkPolicy, TSS_SECRET_MODE_SHA1,
-                (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Policy_SetSecret(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-
-    return TSS_SUCCESS;
-}
-
-int tpm_free_context(TSS_HCONTEXT hContext,
-        TSS_HPOLICY hTPMPolicy)
-{
-    int result ;
-    result = Tspi_Context_CloseObject(hContext,hTPMPolicy);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_CloseObject failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-    result = Tspi_Context_FreeMemory (hContext,NULL);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_FreeMemory failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-    result = Tspi_Context_Close(hContext);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_Close failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-    return TSS_SUCCESS;
-}
-
 int generate_aik(char *aik_blob_path) 
 {
     TSS_HCONTEXT hContext;
@@ -139,7 +15,7 @@ int generate_aik(char *aik_blob_path)
     TSS_HKEY hPCA;
     TSS_HPOLICY	hTPMPolicy;
     TSS_HPOLICY	hSrkPolicy;
-    BYTE n[2048/8];
+    BYTE CA_Key[TSS_KEY_SIZE_2048/sizeof(BYTE)];
     FILE *f_out;
     BYTE* tcpaiIdblob;
     UINT32 tcpaiIdlobLen;
@@ -176,9 +52,9 @@ int generate_aik(char *aik_blob_path)
         return result;
     }
 
-    memset (n, 0xff, sizeof(n));
+    memset (CA_Key, 0xff, sizeof(CA_Key));
     result = Tspi_SetAttribData(hPCA, TSS_TSPATTRIB_RSAKEY_INFO,
-            TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, sizeof(n), n); 
+            TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, sizeof(CA_Key), CA_Key); 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_SetAttribData(PCA, RSAKEY_INFO) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;

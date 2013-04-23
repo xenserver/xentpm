@@ -34,34 +34,29 @@ int print_base64(void* data, UINT32 len)
 
 int read_tpm_key(unsigned char *key, int keyLen)
 {
-    FILE* fp;
-    unsigned char key_buf[80];
-    memset(key_buf,0,80);
-    if ((fp = fopen (KEY_FILE, "rb")) == NULL) {
-        syslog(LOG_ERR, "Unable to open %s for reading\n", KEY_FILE);
+    unsigned char key_buf[2*SHA_DIGEST_LENGTH + 1]; // sha1 in hex
+    int result;
+
+    if ((result = get_config_key("password", key_buf, sizeof(key_buf))) != 0) {
         return 1;
     }
     
-    if (fread(key_buf, 1,80, fp) < KEY_HEX_SIZE) {
-        syslog(LOG_INFO, "Expecting SHA1 HMAC in  %s\n", KEY_FILE);
-    }
-    if (get_key_bytes(key,key_buf))  {
-        syslog(LOG_ERR, "Error readin key from %s\n", KEY_FILE);
+    if ((result = get_key_bytes(key,key_buf)) != 0)  {
+        syslog(LOG_ERR, "Error readin key from %s\n",CONFIG_FILE);
         return 1;
     }
-
-    fclose(fp);
 
     return 0;
 }
 
+//convert sha1 hex string to sha1 bytes
 
 static int get_key_bytes(unsigned char * md, unsigned char * buf)
 {
     int i;
     char t1;
     char t2;
-    for (i = 0; i < KEY_SIZE; i++) {
+    for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
         t1 = get_val(buf[i*2]);    
         t2 = get_val(buf[i*2+1]);
         if( t1 < 0 || t2 < 0) {
@@ -170,3 +165,156 @@ sha1(TSS_HCONTEXT hContext, void *shaBuf, UINT32 shaBufLen, BYTE *digest)
     Tspi_Context_CloseObject(hContext, hHash);
 }
 
+int get_config_key(const char* key, char* val, int max_val_len)
+{
+    char *k;
+    char *v;
+    int ret;
+    char buffer[1024];
+    
+    FILE* fp = fopen(CONFIG_FILE,"r");
+   
+   if(!fp) {
+        syslog(LOG_ERR, "Unable to open %s for reading\n", CONFIG_FILE);
+        return 1;
+    }
+
+    while (fgets(buffer, sizeof buffer, fp) != NULL) {
+
+        if(buffer[0]=='#' || buffer[0] =='\n' ||  buffer[0] =='\r' )
+            continue;
+        k = strtok(buffer, "=\r\n");
+        if ( k && ((ret = strcmp(k, key))== 0) ) {
+            v = strtok(NULL, "\r\n");
+            if (v) {
+                strncpy(val, v, max_val_len);
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
+
+
+int  tpm_init_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM,
+            TSS_HPOLICY *hTPMPolicy) 
+{
+    int result;
+    BYTE tpm_key[SHA_DIGEST_LENGTH];    
+    
+    if ((result = read_tpm_key(tpm_key,SHA_DIGEST_LENGTH)) != 0) {
+        syslog(LOG_ERR, "TPM Key Not Found \n");
+        return TSS_E_FAIL;
+    }
+
+    result = Tspi_Context_Create(hContext); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Create failed with 0x%X %s", 
+                result, Trspi_Error_String(result));
+        return result;
+    }
+    result = Tspi_Context_Connect((*hContext), NULL);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Connect failed with 0x%X %s", 
+                result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_Context_GetTpmObject((*hContext), hTPM); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_GetTpmObject failed with 0x%X %s", 
+                result, Trspi_Error_String(result));                                                               
+        return result;
+    }
+
+    result = Tspi_Context_CreateObject((*hContext), TSS_OBJECT_TYPE_POLICY,         
+            TSS_POLICY_USAGE, hTPMPolicy);                                          
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_CreateObject(TSS_OBJECT_TYPE_POLICY) failed \
+                with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_Policy_AssignToObject((*hTPMPolicy), (*hTPM));                    
+    if (result != TSS_SUCCESS) {                                                    
+        syslog(LOG_ERR, "Tspi_Policy_AssignToObject(TPM) failed with 0x%X %s", 
+                result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_Policy_SetSecret((*hTPMPolicy), TSS_SECRET_MODE_SHA1,             
+            (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);                          
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_SetSecret failed with 0x%X %s", 
+                result, Trspi_Error_String(result));
+        return result;
+    }   
+
+    return result;
+}
+
+
+int tpm_create_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
+        TSS_HPOLICY *hTPMPolicy, TSS_HPOLICY *hSrkPolicy) 
+{
+
+    TSS_UUID SRK_UUID = TSS_UUID_SRK;
+    int result;
+    BYTE tpm_key[SHA_DIGEST_LENGTH];    
+    
+    if ((result = read_tpm_key(tpm_key,SHA_DIGEST_LENGTH)) != 0) {
+        syslog(LOG_ERR, "TPM Key Not Found \n");
+        return TSS_E_FAIL;
+    }
+
+    result =  tpm_init_context(hContext, hTPM, hTPMPolicy);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Create failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
+
+    result = Tspi_Context_LoadKeyByUUID((*hContext),
+            TSS_PS_TYPE_SYSTEM, SRK_UUID, hSRK);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_LoadKeyByUUID(TSS_PS_TYPE_SYSTEM, SRK_UUID) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_GetPolicyObject((*hSRK), TSS_POLICY_USAGE, hSrkPolicy); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_GetPolicyObject(SRK, TSS_POLICY_USAGE) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_Policy_SetSecret(*hSrkPolicy, TSS_SECRET_MODE_SHA1,
+                (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Policy_SetSecret(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+
+    return TSS_SUCCESS;
+}
+
+int tpm_free_context(TSS_HCONTEXT hContext,
+        TSS_HPOLICY hTPMPolicy)
+{
+    int result ;
+    result = Tspi_Context_CloseObject(hContext,hTPMPolicy);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_CloseObject failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+    result = Tspi_Context_FreeMemory (hContext,NULL);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_FreeMemory failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+    result = Tspi_Context_Close(hContext);
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_Close failed with 0x%X %s", result, Trspi_Error_String(result));
+        return result;
+    }
+    return TSS_SUCCESS;
+}

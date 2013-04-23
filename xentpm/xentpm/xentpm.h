@@ -13,9 +13,7 @@
 #include <openssl/sha.h>
 #include <trousers/trousers.h>
 
-#define KEY_FILE "/opt/xensource/tpm/tpm_key"
-#define KEY_SIZE 20
-#define KEY_HEX_SIZE 40
+#define CONFIG_FILE "/opt/xensource/tpm/config"
 
 #define GET_SHORT_UINT16(buf,offset) ( (buf[offset] << sizeof(BYTE)) | buf[offset+1] )
 
@@ -41,4 +39,6 @@ int load_aik_tpm(char * aik_blob_path, TSS_HCONTEXT hContext,
 BYTE* base64_decode(char *in, int * outLen);
 void
 sha1(TSS_HCONTEXT hContext, void *shaBuf, UINT32 shaBufLen, BYTE *digest);
+int get_config_key(const char* key, char* val, int max_val_len);
+
 #endif
