@@ -51,11 +51,9 @@ int take_ownership()
     TSS_FLAG fSrkAttrs;
     BYTE tpm_key[KEY_SIZE];    
     syslog(LOG_INFO, "Taking ownership of the TPM.\n");
-    
-    
-    //
+
+
     // First check if the TPM is owned.  If it is not owned then xentpm needs to take ownership
-    //
     if (tpm_owned()) {
         // TPM is already owned so nothing to do.
         syslog(LOG_INFO, "TPM is already owned.\n");
@@ -66,44 +64,13 @@ int take_ownership()
         syslog(LOG_ERR, "TPM Key Not Found \n");
         return TSS_E_FAIL;
     }
-     
-    result = Tspi_Context_Create(&hContext);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_Create Unable to connect %s \n", 
-            result,Trspi_Error_String(result));
-        return result;
-    }
-    //Connect to Local Troursers URI=NULL
-    result = Tspi_Context_Connect(hContext, NULL);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_Connect Unable to connect %s \n", 
-            result,Trspi_Error_String(result));
-        return result;
-    }
 
-    result = Tspi_Context_GetTpmObject(hContext, &hTPM);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_INFO, "Error 0x%x on Tspi_Context_GetTpmObject %s \n", 
-            result,Trspi_Error_String(result));
-        return result;
-    }
 
-    //
-    // Set the TPM password
-    //
-    result = Tspi_GetPolicyObject(hTPM, TSS_POLICY_USAGE, &tpmPolicy);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error 0x%x on Tspi_GetPolicyObject\n", 
-            result,Trspi_Error_String(result));
-        return result;
-    }
+    result = tpm_init_context(& hContext, &hTPM, &tpmPolicy);
 
-    //result = Tspi_Policy_SetSecret(tpmPolicy, TSS_SECRET_MODE_PLAIN,
-      //          (UINT32)strlen(OWNER_SECRET),(BYTE*)OWNER_SECRET);
-    result = Tspi_Policy_SetSecret(tpmPolicy, TSS_SECRET_MODE_SHA1,
-                (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error Setting TPM Password %s \n", Trspi_Error_String(result));
+        syslog(LOG_ERR, "Error 0x%x tpm_init_context %s \n", 
+                result,Trspi_Error_String(result));
         return result;
     }
 
@@ -111,24 +78,20 @@ int take_ownership()
     result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_RSAKEY, fSrkAttrs, &hSRK);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_Context_CreateObject %s \n",
-            result,Trspi_Error_String(result));
+                result,Trspi_Error_String(result));
         return result;
     }
 
-    //
     // Set the SRK password
-    //
     result = Tspi_GetPolicyObject(hSRK, TSS_POLICY_USAGE, &srkPolicy);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_GetPolicyObject %s \n", 
-            result, Trspi_Error_String(result));
+                result, Trspi_Error_String(result));
         return result;
     }
 
-    //result = Tspi_Policy_SetSecret(srkPolicy, TSS_SECRET_MODE_PLAIN,
-      //          (UINT32)strlen(OWNER_SECRET),(BYTE*)OWNER_SECRET);
     result = Tspi_Policy_SetSecret(srkPolicy, TSS_SECRET_MODE_SHA1,
-                (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
+            (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error Setting SRK Password %s \n", Trspi_Error_String(result));
         return result;

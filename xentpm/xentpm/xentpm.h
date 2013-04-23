@@ -31,6 +31,8 @@ int tpm_free_context(TSS_HCONTEXT hContext,
         TSS_HPOLICY hTPMPolicy);
 int tpm_create_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
         TSS_HPOLICY *hTPMPolicy, TSS_HPOLICY *hSrkPolicy); 
+int  tpm_init_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM,
+            TSS_HPOLICY *hTPMPolicy); 
 int load_aik_tpm(char * aik_blob_path, TSS_HCONTEXT hContext,
         TSS_HKEY hSRK, TSS_HKEY* hAIK);
 BYTE* base64_decode(char *in, int * outLen);

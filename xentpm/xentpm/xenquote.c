@@ -22,7 +22,7 @@
 
 #include "xentpm.h" 
 #include <arpa/inet.h>
-
+#define PCR_QUOTE_LEN 20
 int
 tpm_quote(char * b64_nonce, char *aik_blob_path)
 {
@@ -45,7 +45,6 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
     BYTE *apiBuf;
     UINT32 apiBufLen;
     BYTE nonceHash[SHA_DIGEST_LENGTH];
-    BYTE pcrHash[SHA_DIGEST_LENGTH];
     int nonceLen ;
     BYTE* nonceBuf = NULL; ;
     int	i;
@@ -90,7 +89,8 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
     result = Tspi_TPM_GetCapability(hTPM, TSS_TPMCAP_PROPERTY,
 		sizeof(tpmPCRProp), (BYTE *)&tpmPCRProp, &apiBufLen, &apiBuf); 
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_TPM_GetCapability failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_TPM_GetCapability failed with 0x%X %s", result, 
+            Trspi_Error_String(result));
         return result;
     }
 
@@ -101,7 +101,8 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
 		TSS_PCRS_STRUCT_INFO, &hPCRs); 
     
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_CreateObject(PCR) failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_Context_CreateObject(PCR) failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
@@ -113,10 +114,12 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
     //   3)uint32 QuoteSize       //  Quotes 
     //   4)BYTE *Quote (PCR Quote readable in Text)
     
-    quoteBuf = malloc((sizeof(UINT16) + npcrBytes + sizeof(UINT32) + 20 * npcrMax));
+    quoteBuf = malloc((sizeof(UINT16) + npcrBytes + sizeof(UINT32) + 
+                    PCR_QUOTE_LEN * npcrMax));
     
     if (!quoteBuf) {
-        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
+        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,
+            __LINE__);
         return 1;
     }
     
@@ -130,7 +133,8 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
         result = Tspi_PcrComposite_SelectPcrIndex(hPCRs, pcr); 
         
         if (result != TSS_SUCCESS) {
-            syslog(LOG_ERR, "Tspi_PcrComposite_SelectPcrIndex failed with 0x%X %s", result, Trspi_Error_String(result));
+            syslog(LOG_ERR, "Tspi_PcrComposite_SelectPcrIndex failed with 0x%X %s", 
+                 result, Trspi_Error_String(result));
             return result;
         }
 
@@ -183,7 +187,7 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
 
     // Fill in the PCR buffer
     bPointer = quoteBuf + 2 + npcrBytes;
-    *(UINT32 *)bPointer = htonl (20*npcrs);
+    *(UINT32 *)bPointer = htonl (PCR_QUOTE_LEN*npcrs);
     bPointer += sizeof(UINT32);
     for (i=0; i<=npcrMax; i++) {
         if (quoteBuf[2+(i/8)] & (1 << (i%8))) {
