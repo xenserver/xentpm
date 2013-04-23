@@ -105,11 +105,12 @@ int tpm_challenge(char *aik_blob_path, char *b64_challenge)
 
     // Decrypt challenge data
     
-    result = Tspi_TPM_ActivateIdentity(hTPM, hAIK, asymCADataLen, asymCAData,
-                                       symCADataLen, symCAData, &responseLen, &response); 
+    result = Tspi_TPM_ActivateIdentity(hTPM, hAIK, asymCADataLen, 
+                asymCAData, symCADataLen, symCAData, &responseLen, &response); 
     
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_TPM_ActivateIdentity failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_TPM_ActivateIdentity failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 

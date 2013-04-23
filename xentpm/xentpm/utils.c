@@ -111,7 +111,8 @@ int load_aik_tpm(char * aik_blob_path, TSS_HCONTEXT hContext,
     
     result = Tspi_Context_LoadKeyByBlob(hContext, hSRK, aikBlobLen, aikBlob, hAIK); 
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
     
@@ -135,7 +136,8 @@ BYTE* base64_decode(char *in, int * outLen)
     bufLen = strlen(in);
     out = (BYTE*)malloc(bufLen+1);
     if (!out) {
-        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
+        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",
+            __FILE__,__LINE__);
         return NULL;
     }
     memset(out, 0, bufLen + 1);
@@ -271,7 +273,8 @@ int tpm_create_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
 
     result =  tpm_init_context(hContext, hTPM, hTPMPolicy);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_Create failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_Context_Create failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
@@ -279,20 +282,23 @@ int tpm_create_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
     result = Tspi_Context_LoadKeyByUUID((*hContext),
             TSS_PS_TYPE_SYSTEM, SRK_UUID, hSRK);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_LoadKeyByUUID(TSS_PS_TYPE_SYSTEM, SRK_UUID) failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_Context_LoadKeyByUUID(TSS_PS_TYPE_SYSTEM, SRK_UUID) \
+            failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
     }
 
     result = Tspi_GetPolicyObject((*hSRK), TSS_POLICY_USAGE, hSrkPolicy); 
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_GetPolicyObject(SRK, TSS_POLICY_USAGE) failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_GetPolicyObject(SRK, TSS_POLICY_USAGE) \
+            failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
     }
 
     result = Tspi_Policy_SetSecret(*hSrkPolicy, TSS_SECRET_MODE_SHA1,
                 (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Policy_SetSecret(SRK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_Policy_SetSecret(SRK) failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
@@ -305,17 +311,20 @@ int tpm_free_context(TSS_HCONTEXT hContext,
     int result ;
     result = Tspi_Context_CloseObject(hContext,hTPMPolicy);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_CloseObject failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_Context_CloseObject failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
     result = Tspi_Context_FreeMemory (hContext,NULL);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_FreeMemory failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_Context_FreeMemory failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
     result = Tspi_Context_Close(hContext);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_Close failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_Context_Close failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
     return TSS_SUCCESS;
