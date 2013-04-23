@@ -155,7 +155,6 @@ int get_aik_pem(char *aik_blob_path)
     UINT32 keyExponentSize;
     BYTE *keyExponent;
     int  result;
-    FILE *f_blob;
 
     result = take_ownership();
     if (result) {
@@ -171,31 +170,8 @@ int get_aik_pem(char *aik_blob_path)
         return result;
     }
 
-    // Read AIK blob 
-    if ((f_blob = fopen(aik_blob_path, "rb")) == NULL) {
-        syslog(LOG_ERR, "Unable to open file %s\n", aik_blob_path);
-        return 1;
-    }
-    fseek(f_blob, 0, SEEK_END);
-    aikblobLen = ftell(f_blob);
-    fseek(f_blob, 0, SEEK_SET);
-    aikblob = malloc(aikblobLen);
-
-    if (!aikblob) {
-        syslog(LOG_ERR, "Malloc failed in %s and %d ",__FILE__,__LINE__);
-        return 1;
-    }
-
-    if (fread(aikblob, 1, aikblobLen, f_blob) != aikblobLen) {
+    if ( (result = load_aik_tpm(aik_blob_path, hContext,  hSRK, &hAIK)) != 0) {
         syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
-        return 1;
-    }
-    fclose (f_blob);
-
-    result = Tspi_Context_LoadKeyByBlob(hContext, hSRK, aikblobLen, aikblob, &hAIK); 
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", 
-            result, Trspi_Error_String(result));
         return result;
     }
 
