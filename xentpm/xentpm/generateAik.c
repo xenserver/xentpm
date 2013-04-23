@@ -15,7 +15,7 @@ int generate_aik(char *aik_blob_path)
     TSS_HKEY hPCA;
     TSS_HPOLICY	hTPMPolicy;
     TSS_HPOLICY	hSrkPolicy;
-    BYTE CA_Key[TSS_KEY_SIZE_2048/sizeof(BYTE)];
+    BYTE CA_Key[TSS_KEY_SIZE_2048/8]; // 2048 bits or 256 Bytes 
     FILE *f_out;
     BYTE* tcpaiIdblob;
     UINT32 tcpaiIdlobLen;
