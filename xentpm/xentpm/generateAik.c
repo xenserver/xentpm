@@ -48,7 +48,8 @@ int generate_aik(char *aik_blob_path)
             TSS_KEY_TYPE_LEGACY|TSS_KEY_SIZE_2048,
             &hPCA);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_CreateObject(RSAKEY, TSS_KEY_TYPE_LEGACY) failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_Context_CreateObject(RSAKEY, TSS_KEY_TYPE_LEGACY) failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
@@ -56,7 +57,8 @@ int generate_aik(char *aik_blob_path)
     result = Tspi_SetAttribData(hPCA, TSS_TSPATTRIB_RSAKEY_INFO,
             TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, sizeof(CA_Key), CA_Key); 
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_SetAttribData(PCA, RSAKEY_INFO) failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_SetAttribData(PCA, RSAKEY_INFO) failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
@@ -66,7 +68,8 @@ int generate_aik(char *aik_blob_path)
             TSS_OBJECT_TYPE_RSAKEY,
             TSS_KEY_TYPE_IDENTITY | TSS_KEY_SIZE_2048, &hAIK);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_CreateObject(RSAKEY, TSS_KEY_TYPE_IDENTITY) failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_CreateObject(RSAKEY, TSS_KEY_TYPE_IDENTITY) failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
@@ -75,7 +78,8 @@ int generate_aik(char *aik_blob_path)
     result = Tspi_TPM_CollateIdentityRequest(hTPM, hSRK, hPCA, 0, "",
             hAIK, TSS_ALG_AES, &tcpaiIdlobLen, &tcpaiIdblob);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_CollateIdentityRequest failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_CollateIdentityRequest failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
@@ -87,7 +91,8 @@ int generate_aik(char *aik_blob_path)
     result = Tspi_GetAttribData(hAIK, TSS_TSPATTRIB_KEY_BLOB,
             TSS_TSPATTRIB_KEYBLOB_BLOB, &attrKeyblobLen, &attrKeyblob); 
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_GetAttribData(KEY_BLOB) failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_GetAttribData(KEY_BLOB) failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
@@ -106,12 +111,14 @@ int generate_aik(char *aik_blob_path)
     //close context object
     result = Tspi_Context_CloseObject(hContext,hAIK);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_CloseObject failed  0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_Context_CloseObject failed  0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
     result = Tspi_Context_CloseObject(hContext,hPCA);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_CloseObject failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_Context_CloseObject failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
@@ -187,7 +194,8 @@ int get_aik_pem(char *aik_blob_path)
 
     result = Tspi_Context_LoadKeyByBlob(hContext, hSRK, aikblobLen, aikblob, &hAIK); 
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
@@ -196,7 +204,8 @@ int get_aik_pem(char *aik_blob_path)
     result = Tspi_GetAttribData(hAIK, TSS_TSPATTRIB_RSAKEY_INFO,
             TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, &aikblobLen, &aikblob); 
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_GetAttribData(AIK, RSA_MODULUS) failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_GetAttribData(AIK, RSA_MODULUS) failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
@@ -204,7 +213,8 @@ int get_aik_pem(char *aik_blob_path)
     result = Tspi_GetAttribData(hAIK, TSS_TSPATTRIB_RSAKEY_INFO,
             TSS_TSPATTRIB_KEYINFO_RSA_EXPONENT, &keyExponentSize, &keyExponent); 
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_GetAttribData(AIK, RSA_EXPONENT) failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_GetAttribData(AIK, RSA_EXPONENT) failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
@@ -277,7 +287,8 @@ int get_aik_tcpa(char *aik_blob_path)
 
     result = Tspi_Context_LoadKeyByBlob(hContext, hSRK, aikblobLen, aikblob, &hAIK);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
@@ -288,7 +299,8 @@ int get_aik_tcpa(char *aik_blob_path)
     result = Tspi_GetAttribData(hAIK, TSS_TSPATTRIB_KEY_BLOB,
             TSS_TSPATTRIB_KEYBLOB_PUBLIC_KEY, &tcpaKeyblobLen, &tcpaKeyblob); 
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_GetAttribData(AIK, PUBLIC_KEY) failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_GetAttribData(AIK, PUBLIC_KEY) failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
         return result;
     }
 
