@@ -27,20 +27,12 @@ int get_ek()
     BYTE *modulus;
     BYTE *exponent;
     RSA *ekRsa;
-    //BYTE tpm_key[KEY_SIZE];    
-
+    
     result = take_ownership();
     if (result) {
         syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
         return result;
     }
-    
-    /*if ((result = read_tpm_key(tpm_key,KEY_SIZE)) != 0) {
-        syslog(LOG_ERR, "TPM Key Not Found \n");
-        return TSS_E_FAIL;
-    }*/
-
-
 
     result = tpm_create_context(&hContext, &hTPM, &hSRK, 
             &hTPMPolicy, &hSrkPolicy); 
@@ -49,38 +41,6 @@ int get_ek()
         syslog(LOG_ERR, "Error in aik context for generating ek");
         return result;
     }
-    /*result = Tspi_Context_Create(&hContext);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_Create Unable to connect\n", result);
-        return result;
-    }
-
-    result = Tspi_Context_Connect(hContext, NULL);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_Connect Unable to connect\n", result);
-        return result;
-    }
-
-    result = Tspi_Context_GetTpmObject (hContext, &hTPM);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_GetTpmObject\n", result);
-        return result;
-    }
-
-
-    result = Tspi_GetPolicyObject (hTPM, TSS_POLICY_USAGE, &ekPolicy);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error 0x%x on Tspi_Context_GetTpmObject\n", result);
-        return result;
-    }
-
-    result = Tspi_Policy_SetSecret(ekPolicy, TSS_SECRET_MODE_SHA1,
-            (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
-
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error Setting TPM Password %s \n", Trspi_Error_String(result));
-        return result;
-    } */
     result = Tspi_TPM_GetPubEndorsementKey (hTPM, TRUE, NULL, &hPubek);
 
     if (result != TSS_SUCCESS) {
@@ -164,31 +124,6 @@ int get_ekcert()
         return result;
     }
 
-
-
-    /*result = Tspi_Context_Create(&hContext);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_Create failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-    result = Tspi_Context_Connect(hContext, NULL);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_Connect failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-    
-    result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_POLICY, TSS_POLICY_USAGE, &hNVPolicy); 
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_CreateObject(TSS_OBJECT_TYPE_POLICY) failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }
-
-    result = Tspi_Policy_SetSecret(hNVPolicy, TSS_SECRET_MODE_SHA1,
-            (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Policy_SetSecret failed with 0x%X %s", result, Trspi_Error_String(result));
-        return result;
-    }*/
     result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_NV, 0, &hNV);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_CreateObject(TSS_OBJECT_TYPE_NV) failed with 0x%X %s", result, Trspi_Error_String(result));

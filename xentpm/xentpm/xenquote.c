@@ -22,11 +22,9 @@
 
 #include "xentpm.h" 
 #include <arpa/inet.h>
-static void sha1(TSS_HCONTEXT hContext, void *shaBuf, UINT32 shaBufLen, BYTE *digest);
-
 
 int
-tpm_quote(char *nonce, char *aik_blob_path)
+tpm_quote(char * b64_nonce, char *aik_blob_path)
 {
     TSS_HCONTEXT hContext;
     TSS_HTPM hTPM;
@@ -48,9 +46,8 @@ tpm_quote(char *nonce, char *aik_blob_path)
     UINT32 apiBufLen;
     BYTE nonceHash[SHA_DIGEST_LENGTH];
     BYTE pcrHash[SHA_DIGEST_LENGTH];
-    BIO *bmem, *b64;
-    BYTE* nonceBuf ;
-    UINT32 nonceBufLen;
+    int nonceLen ;
+    BYTE* nonceBuf = NULL; ;
     int	i;
     int	result;
 
@@ -70,26 +67,16 @@ tpm_quote(char *nonce, char *aik_blob_path)
         return result;
     }
 
-    // Base64 decode the nonce
-
-    nonceBufLen = strlen(nonce);
-    nonceBuf = (BYTE*)malloc(nonceBufLen);
+    nonceBuf = base64_decode(b64_nonce, &nonceLen);
+    
     if (!nonceBuf) {
-        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
+        syslog(LOG_ERR, "Unable to b64 decode nonce \n");
         return 1;
     }
-    memset(nonceBuf, 0, nonceBufLen);
-    b64 = BIO_new(BIO_f_base64());
-    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
-    bmem = BIO_new_mem_buf(nonce, nonceBufLen);
-    bmem = BIO_push(b64, bmem);
-    int nonceLen = BIO_read(bmem, nonceBuf, nonceBufLen);
-    BIO_free_all(bmem);
 
     // Hash the nonce
     sha1(hContext, nonceBuf, nonceLen, nonceHash);
     free(nonceBuf);
-
 
     if ( (result = load_aik_tpm(aik_blob_path, hContext,  hSRK, &hAIK)) != 0) {
         syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
@@ -112,6 +99,7 @@ tpm_quote(char *nonce, char *aik_blob_path)
     npcrBytes = (npcrMax + 7) / 8; // PCR MASK
     result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_PCRS,
 		TSS_PCRS_STRUCT_INFO, &hPCRs); 
+    
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Context_CreateObject(PCR) failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -125,7 +113,7 @@ tpm_quote(char *nonce, char *aik_blob_path)
     //   3)uint32 QuoteSize       //  Quotes 
     //   4)BYTE *Quote (PCR Quote readable in Text)
     
-    quoteBuf = malloc((2 + npcrBytes + 4 + 20 * npcrMax));
+    quoteBuf = malloc((sizeof(UINT16) + npcrBytes + sizeof(UINT32) + 20 * npcrMax));
     
     if (!quoteBuf) {
         syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
@@ -135,7 +123,7 @@ tpm_quote(char *nonce, char *aik_blob_path)
     *(UINT16 *)quoteBuf = htons(npcrBytes);
     
     for (i=0; i<npcrBytes; i++)
-        quoteBuf[2+i] = 0;
+        quoteBuf[sizeof(UINT16)+i] = 0;
 
     for (i=0; i<npcrMax; i++) {
         long pcr = i ;
@@ -150,9 +138,8 @@ tpm_quote(char *nonce, char *aik_blob_path)
         quoteBuf[2+(pcr/8)] |= 1 << (pcr%8);
     }
 
-    // Create TSS_VALIDATION struct for Quote
-    /*
-    typedef struct tdTSS_VALIDATION
+    /* Create TSS_VALIDATION struct for Quote
+     typedef struct tdTSS_VALIDATION
     { 
         TSS_VERSION  versionInfo;
         UINT32       ulExternalDataLength; //nonce len
@@ -164,9 +151,7 @@ tpm_quote(char *nonce, char *aik_blob_path)
     } TSS_VALIDATION;
     */
 
-    /* We get TPM_QUOTE_INFO struct */
- 
-    /*    IDL Definition
+    /* We get TPM_QUOTE_INFO structure IDL Definition
         typedef struct tdTPM_QUOTE_INFO{
             TPM_STRUCT_VER version;
             BYTE fixed[4];
@@ -177,7 +162,6 @@ tpm_quote(char *nonce, char *aik_blob_path)
         Following  details from TPM SPEC 1.2
         
         TPM_STRUCT_VER version This MUST be 1.1.0.0
-
         BYTE fixed This SHALL always be the string ‘QUOT’
         TPM_COMPOSITE_HASH digestValue This SHALL be the result of i
         the composite hash algorithm using the current values of the 
@@ -185,8 +169,6 @@ tpm_quote(char *nonce, char *aik_blob_path)
         TPM_NONCE externalData 160 bits of externally supplied data
     */
                                                                                          
-
-
     valid.ulExternalDataLength = sizeof(nonceHash);
     valid.rgbExternalData = nonceHash;
 
@@ -234,7 +216,6 @@ tpm_quote(char *nonce, char *aik_blob_path)
     // the Signature is of TPM_Quote from the TPM 
     // For quote verification read details below.
     //
-    
     // Tack on the rgbValidationData onto the end of the quote buffer
     quoteBuf = realloc(quoteBuf, quoteBufLen + valid.ulValidationDataLength);
 
@@ -263,18 +244,3 @@ tpm_quote(char *nonce, char *aik_blob_path)
     return 0;
 }
 
-static void
-sha1(TSS_HCONTEXT hContext, void *shaBuf, UINT32 shaBufLen, BYTE *digest)
-{
-    TSS_HHASH hHash;
-    BYTE *apiBuf;
-    UINT32 apiBufLen;
-
-    Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_HASH,
-		TSS_HASH_DEFAULT, &hHash);
-    Tspi_Hash_UpdateHashValue(hHash, shaBufLen, (BYTE *)shaBuf);
-    Tspi_Hash_GetHashValue(hHash, &apiBufLen, &apiBuf);
-    memcpy (digest, apiBuf, apiBufLen);
-    Tspi_Context_FreeMemory(hContext, apiBuf);
-    Tspi_Context_CloseObject(hContext, hHash);
-}

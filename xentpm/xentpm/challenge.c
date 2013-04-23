@@ -32,7 +32,14 @@
 
 #include "xentpm.h"
 #include <arpa/inet.h>
-int tpm_challenge(char *aik_blob_path, char *challenge)
+
+/* Foolowing function is called when
+ * TPM challange api is called by user
+ * input is the challange encoded in base_64
+ * */
+
+
+int tpm_challenge(char *aik_blob_path, char *b64_challenge)
 {
     TSS_HCONTEXT hContext;
     TSS_HTPM hTPM;
@@ -42,13 +49,13 @@ int tpm_challenge(char *aik_blob_path, char *challenge)
     TSS_HPOLICY	hSrkPolicy;
     BYTE *response;
     UINT32 responseLen;
-    UINT32 bufLen;
-    BYTE *asym;
-    UINT32 asymLen;
-    BYTE *sym;
-    UINT32 symLen;
+    BYTE *asymCAData;
+    UINT32 asymCADataLen;
+    BYTE *symCAData;
+    UINT32 symCADataLen;
+    BYTE* challengeBuf = NULL;
+    int challengeLen;
     int	result;
-    BIO *bmem, *b64;
 
     syslog(LOG_INFO, "Recieved a Challange");
 
@@ -65,35 +72,66 @@ int tpm_challenge(char *aik_blob_path, char *challenge)
         syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
         return result;
     }
+    
+    challengeBuf = base64_decode(b64_challenge, &challengeLen);
 
-    // Base64 decode the challenge
-    bufLen = strlen(challenge);
-    BYTE* challengeBuf = (BYTE*)malloc(bufLen);
-    memset(challengeBuf, 0, bufLen);
-    b64 = BIO_new(BIO_f_base64());
-    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
-    bmem = BIO_new_mem_buf(challenge, bufLen);
-    bmem = BIO_push(b64, bmem);
-    int challengeLen = BIO_read(bmem, challengeBuf, bufLen);
-    BIO_free_all(bmem);
+    if (!challengeBuf) {
+        syslog(LOG_ERR, "Unable to b64 decode challange \n");
+        return 1;
+    }
+        
 
-    // Parse challenge
-    if (challengeLen < 8)
+    // Parse the decoded challange from client
+    //  Challange has following format
+    //  4 byte size  // ASYM_CA_LENGHT
+    //  ASYM_CA_CONTENT  
+    //  4 bytes size
+    //  SYM_CA_Structure 
+   
+    
+    //== Following are the structures we expect from the client
+    
+    /* SYM_CA_Structure Encrypt with EK */
+    /*
+     * Creating the AYSM_CA_CONTENT for ecrypting the session key
+     * 
+     typedef struct  TPM_ASYM_CA_CONTENTS {
+         TPM_SYMMETRIC_KEY sessionKey; // 
+         TPM_DIGEST idDigest;
+     } TPM_ASYM_CA_CONTENTS;
+
+     typedef struct tdTPM_SYMMETRIC_KEY {
+        TPM_ALGORITHM_ID algId;
+        TPM_ENC_SCHEME encScheme;
+        UINT16 size;
+        BYTE* data;
+     } TPM_SYMMETRIC_KEY;
+     **/
+    
+    
+    if (challengeLen < 2*sizeof(UINT32))
         goto badchal;
-    asymLen = ntohl(*(UINT32*)challengeBuf);
-    asym = challengeBuf + 4;
-    challengeBuf += asymLen + 4;
-    if (challengeLen < asymLen+8)
+
+    // First read the ASYM_CA_CONTENT    
+    asymCADataLen = ntohl(*(UINT32*)challengeBuf);
+    asymCAData = challengeBuf + sizeof(UINT32);
+    challengeBuf += asymCADataLen + sizeof(UINT32);
+
+    if (challengeLen < asymCADataLen+ 2*sizeof(UINT32))
         goto badchal;
-    symLen = ntohl(*(UINT32*)challengeBuf);
-    if (challengeLen != asymLen + symLen + 8)
+    
+    // Rad the TPM_SYMMETRIC_KEY data 
+    symCADataLen = ntohl(*(UINT32*)challengeBuf);
+    
+    if (challengeLen != asymCADataLen + symCADataLen + 2*sizeof(UINT32))
         goto badchal;
-    sym = challengeBuf + 4;
+    symCAData = challengeBuf + sizeof(UINT32);
 
     // Decrypt challenge data
-    result = Tspi_TPM_ActivateIdentity(hTPM, hAIK, asymLen, asym,
-                                       symLen, sym,
-                                       &responseLen, &response); 
+    
+    result = Tspi_TPM_ActivateIdentity(hTPM, hAIK, asymCADataLen, asymCAData,
+                                       symCADataLen, symCAData, &responseLen, &response); 
+    
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_TPM_ActivateIdentity failed with 0x%X %s", result, Trspi_Error_String(result));
         return result;
@@ -113,7 +151,7 @@ int tpm_challenge(char *aik_blob_path, char *challenge)
     
     syslog(LOG_INFO, "Success in response!\n");
     return 0;
-
+    
 badchal:
     syslog(LOG_ERR, "Challenge file format is wrong\n");
     return 1;

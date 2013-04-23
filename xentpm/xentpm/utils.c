@@ -129,3 +129,44 @@ int load_aik_tpm(char * aik_blob_path, TSS_HCONTEXT hContext,
     return 0;
 }
 
+ /* Decode the 'in' string
+  * */
+
+BYTE* base64_decode(char *in, int * outLen)
+{
+    BIO *bmem, *b64;
+    BYTE *out;
+    UINT32 bufLen;
+    bufLen = strlen(in);
+    out = (BYTE*)malloc(bufLen+1);
+    if (!out) {
+        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
+        return NULL;
+    }
+    memset(out, 0, bufLen + 1);
+    b64 = BIO_new(BIO_f_base64());
+    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+    bmem = BIO_new_mem_buf(in, bufLen);
+    bmem = BIO_push(b64, bmem);
+    *outLen = BIO_read(bmem, out, bufLen);
+    out[bufLen] = '\0';
+    BIO_free_all(bmem);
+    return out;
+}
+
+void
+sha1(TSS_HCONTEXT hContext, void *shaBuf, UINT32 shaBufLen, BYTE *digest)
+{
+    TSS_HHASH hHash;
+    BYTE *apiBuf;
+    UINT32 apiBufLen;
+
+    Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_HASH,
+		TSS_HASH_DEFAULT, &hHash);
+    Tspi_Hash_UpdateHashValue(hHash, shaBufLen, (BYTE *)shaBuf);
+    Tspi_Hash_GetHashValue(hHash, &apiBufLen, &apiBuf);
+    memcpy (digest, apiBuf, apiBufLen);
+    Tspi_Context_FreeMemory(hContext, apiBuf);
+    Tspi_Context_CloseObject(hContext, hHash);
+}
+
