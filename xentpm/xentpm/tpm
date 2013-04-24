@@ -53,7 +53,12 @@ def call_get_aik_tcpa():
     return stdout
 
 def call_gen_aik():
-    (rc,stdout,stderr) = doexec([prg, "--gen_aik", aikblob])
+    xencert = ""
+    (rc,xencert,stderr) = doexec([xe, "host-get-server-certificate",])
+    if rc != 0:
+        xencert = ""
+
+    (rc,stdout,stderr) = doexec([prg, "--gen_aik", aikblob, base64.b64encode(xencert)])
     if rc != 0:
         raise Exception("Error: " + str(rc) + " generation AIK")
     return stdout

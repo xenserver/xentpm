@@ -1,13 +1,78 @@
-/*
- *generate AI
- *      Publish AIK public key in PEM format and TCPA blob format
+ /*      Publish AIK public key in PEM format and TCPA blob format
  */
 
 #include "xentpm.h"
 #include <unistd.h>
 #include <limits.h>
 
-int generate_aik(char *aik_blob_path) 
+static void
+get_xen_rsa_modulus(char* b64_xen_key_pem, BYTE* CA_Key, unsigned int size)
+{
+
+    BIO *bufio;
+    RSA *rsa;
+    X509 *x509;
+    int modulus_len;
+    BYTE* modulus_buffer;
+    int key_len ;
+    BYTE* key_buffer = NULL; ;
+
+    if (!b64_xen_key_pem)
+        goto set_const;
+
+    key_buffer = base64_decode(b64_xen_key_pem, &key_len);
+
+    if (!key_buffer) {
+        goto set_const;
+    }
+
+    bufio = BIO_new_mem_buf((void*)key_buffer, key_len);
+
+    if ((x509 = PEM_read_bio_X509(bufio, NULL, NULL, NULL)) == NULL) {
+        goto free_key;
+    }
+
+    rsa = X509_get_pubkey(x509)->pkey.rsa;
+
+    if(!rsa){
+        goto free_x509;
+    }
+    modulus_len = BN_num_bytes(rsa->n);
+
+    modulus_buffer = (BYTE*)malloc(modulus_len);
+
+    if (!modulus_buffer) {
+        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",
+                __FILE__, __LINE__);
+        goto free_x509; 
+    }
+
+    modulus_len = BN_bn2bin(rsa->n, modulus_buffer);
+
+    if (modulus_len < size) {
+        memcpy(CA_Key,modulus_buffer,modulus_len);
+        memset(CA_Key+modulus_len,0xff,size - modulus_len);
+        goto free_modulus; 
+    }
+    else
+        memcpy(CA_Key,modulus_buffer,size);
+    free(modulus_buffer);
+    free(x509);
+    free(key_buffer);
+    return;
+
+free_modulus:
+    free(modulus_buffer);
+free_x509:
+    X509_free(x509);
+free_key:    
+    free(key_buffer);
+set_const:
+    memset (CA_Key, 0xff, size);
+    return;
+}
+
+int generate_aik(char *aik_blob_path, char* b64_xen_key_pem) 
 {
     TSS_HCONTEXT hContext;
     TSS_HTPM hTPM;
@@ -16,7 +81,7 @@ int generate_aik(char *aik_blob_path)
     TSS_HKEY hPCA;
     TSS_HPOLICY	hTPMPolicy;
     TSS_HPOLICY	hSrkPolicy;
-    BYTE CA_Key[TSS_KEY_SIZE_2048/CHAR_BIT]; // 2048 bits or 256 Bytes 
+    BYTE CA_Key[TSS_DAA_LENGTH_N]; // 2048 bits or 256 Bytes 
     FILE *f_out;
     BYTE* tcpaiIdblob;
     UINT32 tcpaiIdlobLen;
@@ -54,7 +119,8 @@ int generate_aik(char *aik_blob_path)
         return result;
     }
 
-    memset (CA_Key, 0xff, sizeof(CA_Key));
+    get_xen_rsa_modulus(b64_xen_key_pem,CA_Key,sizeof(CA_Key));
+    
     result = Tspi_SetAttribData(hPCA, TSS_TSPATTRIB_RSAKEY_INFO,
             TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, sizeof(CA_Key), CA_Key); 
     if (result != TSS_SUCCESS) {
@@ -233,7 +299,7 @@ int get_aik_tcpa(char *aik_blob_path)
     UINT32 tcpaKeyblobLen;
     int  result;
     FILE *f_blob;
-
+    
     result = take_ownership();
     if (result) {
         syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
@@ -247,7 +313,12 @@ int get_aik_tcpa(char *aik_blob_path)
         return result;
     }
 
-    // Read AIK blob 
+    /*if ( (result = load_aik_tpm(aik_blob_path, hContext,  hSRK, &hAIK)) != 0) {
+        syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
+        return result;
+    }*/
+   
+    
     if ((f_blob = fopen(aik_blob_path, "rb")) == NULL) {
         syslog(LOG_ERR, "Unable to open file %s\n", aik_blob_path);
         return 1;
@@ -269,10 +340,10 @@ int get_aik_tcpa(char *aik_blob_path)
         return result;
     }
 
-
     // The purpose of this call is to get TCPA_PUBKEY
     // structure of the AIK
     // this is passed to user for creating a challange
+    
     result = Tspi_GetAttribData(hAIK, TSS_TSPATTRIB_KEY_BLOB,
             TSS_TSPATTRIB_KEYBLOB_PUBLIC_KEY, &tcpaKeyblobLen, &tcpaKeyblob); 
     if (result != TSS_SUCCESS) {

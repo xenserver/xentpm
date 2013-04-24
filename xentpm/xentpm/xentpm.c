@@ -10,7 +10,7 @@ usage()
     printf("           --take_ownership |\n");
     printf("           --get_ekey |\n");
     printf("           --get_ekcert |\n");
-    printf("           --gen_aik <aikblobpath>\n");
+    printf("           --gen_aik <aikblobpath> <xenpubkey>  \n");
     printf("           --get_aik_pem <aikblobpath>\n");
     printf("           --get_aik_tcpa <aikblobpath>\n");
     printf("           --tpm_challenge <aikblobpath> <challenge>\n");
@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
                 break;
 
             case 'k' : 
-                if (argc != 3) {
+                if (argc != 2) {
                     usage();
                     status = 1;
                     goto clean;
@@ -77,12 +77,16 @@ int main(int argc, char *argv[])
                 status = get_ekcert();
                 break;
             case 'a' : 
-                if (argc != 3) {
+                if (argc < 3) {
                     usage();
                     status = 1;
                     goto clean;
                 }
-                status = generate_aik(optarg);
+                if (argc == 4)
+                    status = generate_aik(optarg,argv[optind]);
+                else
+                    // use a fixed key
+                    status = generate_aik(optarg, NULL);
                 break;
 
             case 'p' : 

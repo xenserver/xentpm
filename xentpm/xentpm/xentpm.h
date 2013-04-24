@@ -11,11 +11,12 @@
 #include <openssl/x509.h>
 #include <openssl/pem.h>
 #include <openssl/sha.h>
+#include <openssl/bn.h>
 #include <trousers/trousers.h>
 
 #define CONFIG_FILE "/opt/xensource/tpm/config"
 
-#define GET_SHORT_UINT16(buf,offset) ( (buf[offset] << sizeof(BYTE)) | buf[offset+1] )
+#define GET_SHORT_UINT16(buf,offset) ( (buf[offset] << CHAR_BIT) | buf[offset+1] )
 
 /*  XenTPM internal function
  */
@@ -45,7 +46,7 @@ int get_config_key(const char* key, char* val, int max_val_len);
 
 /* XenTPM externally function for Client
  * */
-int generate_aik(char *aik_blob_path); 
+int generate_aik(char *aik_blob_path, char* b64_xeni_key_pem); 
 int tpm_quote(char *nonce, char *aik_blob_file);
 int tpm_challenge(char *aik_blob_file, char *challenge);
 

@@ -24,9 +24,9 @@
 #include <arpa/inet.h>
 
 #define PCR_QUOTE_LEN (TCPA_SHA1_160_HASH_LEN)
-
-#define SET_BIT(buf, i)  ((((BYTE*)buf)[i/CHAR_BIT] |= 1 << (i%CHAR_BIT)))
-#define ROUNDUP_BYTE(x)  ((x + CHAR_BIT - 1 ) & ~(CHAR_BIT -1))
+#define BITS_PER_BYTE CHAR_BIT
+#define SET_BIT(buf, i)  ((((BYTE*)buf)[i/BITS_PER_BYTE] |= 1 << (i%BITS_PER_BYTE)))
+#define ROUNDUP_BYTE(x)  ((x + BITS_PER_BYTE - 1 ) & ~(BITS_PER_BYTE -1))
 
 /* return nonce sha1 from user provide nonce  */
 static int 
