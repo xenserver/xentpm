@@ -26,7 +26,7 @@
 #define PCR_QUOTE_LEN (TCPA_SHA1_160_HASH_LEN)
 #define BITS_PER_BYTE CHAR_BIT
 #define SET_BIT(buf, i)  ((((BYTE*)buf)[i/BITS_PER_BYTE] |= 1 << (i%BITS_PER_BYTE)))
-#define ROUNDUP_BYTE(x)  ((x + BITS_PER_BYTE - 1 ) & ~(BITS_PER_BYTE -1))
+#define ROUNDUP_BYTE(x)  ((x + BITS_PER_BYTE - 1 ) / BITS_PER_BYTE)
 
 /* return nonce sha1 from user provide nonce  */
 static int 
@@ -89,10 +89,8 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
         return result;
     }
     
-    result = tpm_create_context(&hContext, &hTPM, &hSRK, 
-                &hTPMPolicy, &hSrkPolicy); 
-
-    if (result != TSS_SUCCESS ) {
+    if (( result = tpm_create_context(&hContext, &hTPM, &hSRK, 
+                &hTPMPolicy, &hSrkPolicy))!= TSS_SUCCESS) { 
         syslog(LOG_ERR, "Error in aik context for generating aik_pem");
         return result;
     }
@@ -111,10 +109,9 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
     // Create PCR list to be quoted 
     // We will quote all the PCR's
     tpmPCRProp = TSS_TPMCAP_PROP_PCR;
-    result = Tspi_TPM_GetCapability(hTPM, TSS_TPMCAP_PROPERTY,
-		sizeof(tpmPCRProp), (BYTE *)&tpmPCRProp, &apiBufLen, &apiBuf); 
     
-    if (result != TSS_SUCCESS) {
+    if ((result = Tspi_TPM_GetCapability(hTPM, TSS_TPMCAP_PROPERTY,
+		sizeof(tpmPCRProp), (BYTE *)&tpmPCRProp, &apiBufLen, &apiBuf)) != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_TPM_GetCapability failed with 0x%X %s", result, 
             Trspi_Error_String(result));
         return result;
@@ -124,11 +121,8 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
     Tspi_Context_FreeMemory(hContext, apiBuf);
     npcrBytes = ROUNDUP_BYTE(npcrMax); // no of bytes for PCR MASK
     
-
-    result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_PCRS,
-		TSS_PCRS_STRUCT_INFO, &hPCRs); 
-    
-    if (result != TSS_SUCCESS) {
+    if ((result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_PCRS,
+		TSS_PCRS_STRUCT_INFO, &hPCRs))!= TSS_SUCCESS) { 
         syslog(LOG_ERR, "Tspi_Context_CreateObject(PCR) failed with 0x%X %s", 
             result, Trspi_Error_String(result));
         return result;
