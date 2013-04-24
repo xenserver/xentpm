@@ -17,13 +17,13 @@
 
 #define GET_SHORT_UINT16(buf,offset) ( (buf[offset] << sizeof(BYTE)) | buf[offset+1] )
 
-int generate_aik(char *aik_blob_path); 
+/*  XenTPM internal function
+ */
+
 int get_aik_pem(char *aik_blob_path);
 int get_aik_tcpa(char *aik_blob_path); 
-int tpm_quote(char *nonce, char *aik_blob_file);
 int tpm_owned();
 int take_ownership();
-int tpm_challenge(char *aik_blob_file, char *challenge);
 int get_ek();
 int get_ekcert();
 int print_base64(void* data, uint32_t len);
@@ -40,5 +40,13 @@ BYTE* base64_decode(char *in, int * outLen);
 void
 sha1(TSS_HCONTEXT hContext, void *shaBuf, UINT32 shaBufLen, BYTE *digest);
 int get_config_key(const char* key, char* val, int max_val_len);
+
+
+
+/* XenTPM externally function for Client
+ * */
+int generate_aik(char *aik_blob_path); 
+int tpm_quote(char *nonce, char *aik_blob_file);
+int tpm_challenge(char *aik_blob_file, char *challenge);
 
 #endif

@@ -5,6 +5,7 @@
 
 #include "xentpm.h"
 #include <unistd.h>
+#include <limits.h>
 
 int generate_aik(char *aik_blob_path) 
 {
@@ -15,7 +16,7 @@ int generate_aik(char *aik_blob_path)
     TSS_HKEY hPCA;
     TSS_HPOLICY	hTPMPolicy;
     TSS_HPOLICY	hSrkPolicy;
-    BYTE CA_Key[TSS_KEY_SIZE_2048/8]; // 2048 bits or 256 Bytes 
+    BYTE CA_Key[TSS_KEY_SIZE_2048/CHAR_BIT]; // 2048 bits or 256 Bytes 
     FILE *f_out;
     BYTE* tcpaiIdblob;
     UINT32 tcpaiIdlobLen;

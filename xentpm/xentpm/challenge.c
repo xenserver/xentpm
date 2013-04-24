@@ -12,8 +12,8 @@
 /* Foolowing function is called when
  * TPM challange api is called by user
  * input is the challange encoded in base_64
- * */
-
+ * 
+ */
 
 int tpm_challenge(char *aik_blob_path, char *b64_challenge)
 {

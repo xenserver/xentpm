@@ -22,7 +22,42 @@
 
 #include "xentpm.h" 
 #include <arpa/inet.h>
-#define PCR_QUOTE_LEN 20
+
+#define PCR_QUOTE_LEN (TCPA_SHA1_160_HASH_LEN)
+
+#define SET_BIT(buf, i)  ((((BYTE*)buf)[i/CHAR_BIT] |= 1 << (i%CHAR_BIT)))
+#define ROUNDUP_BYTE(x)  ((x + CHAR_BIT - 1 ) & ~(CHAR_BIT -1))
+
+/* return nonce sha1 from user provide nonce  */
+static int 
+get_nonce_sha1(char* b64_nonce, BYTE * nonceHash, TSS_HCONTEXT hContext)
+{
+    int nonceLen ;
+    BYTE* nonceBuf = NULL; ;
+    
+    nonceBuf = base64_decode(b64_nonce, &nonceLen);
+    if (!nonceBuf) {
+        return TSS_E_BAD_PARAMETER; //BAD_PARAM
+    }
+
+    // Hash the nonce
+    sha1(hContext, nonceBuf, nonceLen, nonceHash);
+    free(nonceBuf);
+    return TSS_SUCCESS;
+}
+
+//
+// tpm_quote return following values in serealized binary blob
+//
+//   1)uit16 PCRSelectMAskSize 
+//   2)BYTE* PCRSelectMast
+//   3)uint32 QuoteSize 
+//   4)BYTE *Quote (PCR Quote readable in Text)
+//   5)BYTE *Signature ( RSA Sign the Quote_Info STructre from AIK Pub)
+//
+// The TPM/Trousers generate The composite hash of fields 1- 4
+// this is used to fill TPM_Quote strcutre for verifying quote.
+// the Signature is of TPM_Quote from the TPM 
 int
 tpm_quote(char * b64_nonce, char *aik_blob_path)
 {
@@ -34,19 +69,15 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
     TSS_HPOLICY	hTPMPolicy;
     TSS_HPCRS hPCRs;
     TSS_VALIDATION valid; //quote validation structure
-    TPM_QUOTE_INFO *quoteInfo; 
     UINT32 tpmPCRProp;
     UINT32 npcrMax;
     UINT32 npcrBytes;
-    UINT32 npcrs = 0;
     BYTE *quoteBuf;
     UINT32 quoteBufLen;
     BYTE *bPointer;
     BYTE *apiBuf;
     UINT32 apiBufLen;
     BYTE nonceHash[SHA_DIGEST_LENGTH];
-    int nonceLen ;
-    BYTE* nonceBuf = NULL; ;
     int	i;
     int	result;
 
@@ -59,35 +90,30 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
     }
     
     result = tpm_create_context(&hContext, &hTPM, &hSRK, 
-            &hTPMPolicy, &hSrkPolicy); 
+                &hTPMPolicy, &hSrkPolicy); 
 
-    if(result != TSS_SUCCESS ) {
+    if (result != TSS_SUCCESS ) {
         syslog(LOG_ERR, "Error in aik context for generating aik_pem");
         return result;
     }
 
-    nonceBuf = base64_decode(b64_nonce, &nonceLen);
-    
-    if (!nonceBuf) {
+    if ((result = get_nonce_sha1(b64_nonce, nonceHash, hContext)) != TSS_SUCCESS) {
         syslog(LOG_ERR, "Unable to b64 decode nonce \n");
-        return 1;
-    }
+        return result;
+    }  
 
-    // Hash the nonce
-    sha1(hContext, nonceBuf, nonceLen, nonceHash);
-    free(nonceBuf);
-
-    if ( (result = load_aik_tpm(aik_blob_path, hContext,  hSRK, &hAIK)) != 0) {
+    if ((result = load_aik_tpm(aik_blob_path, hContext,  hSRK, &hAIK)) != 0) {
         syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
         return result;
     }
 
-    
+
     // Create PCR list to be quoted 
     // We will quote all the PCR's
     tpmPCRProp = TSS_TPMCAP_PROP_PCR;
     result = Tspi_TPM_GetCapability(hTPM, TSS_TPMCAP_PROPERTY,
 		sizeof(tpmPCRProp), (BYTE *)&tpmPCRProp, &apiBufLen, &apiBuf); 
+    
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_TPM_GetCapability failed with 0x%X %s", result, 
             Trspi_Error_String(result));
@@ -96,7 +122,9 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
 
     npcrMax = *(UINT32 *)apiBuf;
     Tspi_Context_FreeMemory(hContext, apiBuf);
-    npcrBytes = (npcrMax + 7) / 8; // PCR MASK
+    npcrBytes = ROUNDUP_BYTE(npcrMax); // no of bytes for PCR MASK
+    
+
     result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_PCRS,
 		TSS_PCRS_STRUCT_INFO, &hPCRs); 
     
@@ -109,6 +137,7 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
 	
     // Allocate buffer for SelectMASK + Quotedata
     // Also select all the availble PCRS
+    //  //return to caller following buffer
     //   1)uit16 PCRSelectMAskSize //2 byets
     //   2)BYTE* PCRSelectMask    // which pcrs selected (all)
     //   3)uint32 QuoteSize       //  Quotes 
@@ -123,23 +152,20 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
         return 1;
     }
     
-    *(UINT16 *)quoteBuf = htons(npcrBytes);
-    
-    for (i=0; i<npcrBytes; i++)
-        quoteBuf[sizeof(UINT16)+i] = 0;
+    *(UINT16 *)quoteBuf = htons(npcrBytes); // set num of PCRS
+     
+    BYTE* pcrMask = quoteBuf + sizeof(UINT16); // mask init
+    memset(pcrMask, 0, npcrBytes); 
 
-    for (i=0; i<npcrMax; i++) {
-        long pcr = i ;
-        result = Tspi_PcrComposite_SelectPcrIndex(hPCRs, pcr); 
+    for (i=0; i < npcrMax; i++) {
+        result = Tspi_PcrComposite_SelectPcrIndex(hPCRs, i); 
         
         if (result != TSS_SUCCESS) {
             syslog(LOG_ERR, "Tspi_PcrComposite_SelectPcrIndex failed with 0x%X %s", 
                  result, Trspi_Error_String(result));
             return result;
         }
-
-        ++npcrs;
-        quoteBuf[sizeof(UINT16)+(pcr/8)] |= 1 << (pcr%8);
+        SET_BIT(pcrMask, i);
     }
 
     /* Create TSS_VALIDATION struct for Quote
@@ -151,15 +177,15 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
         UINT32       ulDataLength; //sizeof quote_info
          BYTE*     rgbData; //tpm_quote_info
         UINT32    ulValidationDataLength;
-        BYTE*     rgbValidationData;
+        BYTE*     rgbValidationData; // signature of the quote_info_structure
     } TSS_VALIDATION;
     */
 
-    /* We get TPM_QUOTE_INFO structure IDL Definition
-        typedef struct tdTPM_QUOTE_INFO{
+    /* TPM_QUOTE_INFO structure IDL Definition
+        typedef struct tdTPM_QUOTE_INFO {
             TPM_STRUCT_VER version;
             BYTE fixed[4];
-            TPM_COMPOSITE_HASH digestValue;
+            TPM_COMPOSITE_HASH digestValue; // sha1 of pcrMaskSize,pcrMask,quotelen,quoteData
             TPM_NONCE externalData,
         }   TPM_QUOTE_INFO;
   
@@ -179,48 +205,35 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
     // Perform Quote
     result = Tspi_TPM_Quote(hTPM, hAIK, hPCRs, &valid);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_TPM_Quote failed with 0x%X %s", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_TPM_Quote failed with 0x%X %s",
+            result, Trspi_Error_String(result));
         return result;
     }
 
-    quoteInfo = (TPM_QUOTE_INFO *)valid.rgbData;
 
     // Fill in the PCR buffer
-    bPointer = quoteBuf + sizeof(UINT16) + npcrBytes;
-    *(UINT32 *)bPointer = htonl (PCR_QUOTE_LEN*npcrs);
+    bPointer = quoteBuf + sizeof(UINT16) + npcrBytes; // no of PCRs
+    *(UINT32 *)bPointer = htonl (PCR_QUOTE_LEN*npcrMax); //set the quote size
     bPointer += sizeof(UINT32);
-    for (i=0; i<=npcrMax; i++) {
-        if (quoteBuf[sizeof(UINT16)+(i/8)] & (1 << (i%8))) {
-            result = Tspi_PcrComposite_GetPcrValue(hPCRs,i, &apiBufLen,
-                     &apiBuf);
-            if (result != TSS_SUCCESS) {
-                syslog(LOG_ERR, "Tspi_PcrComposite_GetPcrValue failed with 0x%X %s", 
-                        result, Trspi_Error_String(result));
-                return result;
-            }
-            memcpy (bPointer, apiBuf, apiBufLen);
-            bPointer += apiBufLen;
-            Tspi_Context_FreeMemory(hContext, apiBuf);
-        }
-    }
-    quoteBufLen = bPointer - quoteBuf;
+    for ( i = 0; i < npcrMax; i++) {
 
-    //
-    // Create quote 
-    // content of the quote file is following
-    // following data is serilized in this order
-    //   1)uit16 PCRSelectMAskSize 
-    //   2)BYTE* PCRSelectMast
-    //   3)uint32 QuoteSize 
-    //   4)BYTE *Quote (PCR Quote readable in Text)
-    //   5)BYTE *Signature
-    //
-    // The TPM/Trousers generate The composite hash of fields 1- 4
-    // this is used to fill TPM_Quote strcutre for verifying quote
-    // the Signature is of TPM_Quote from the TPM 
-    // For quote verification read details below.
-    //
-    // Tack on the rgbValidationData onto the end of the quote buffer
+        result = Tspi_PcrComposite_GetPcrValue(hPCRs, i, &apiBufLen,
+                &apiBuf);
+        if (result != TSS_SUCCESS) {
+            syslog(LOG_ERR, "Tspi_PcrComposite_GetPcrValue failed with 0x%X %s", 
+                    result, Trspi_Error_String(result));
+            return result;
+        }
+        memcpy (bPointer, apiBuf, apiBufLen); // individual PCR quote
+        bPointer += apiBufLen;
+        Tspi_Context_FreeMemory(hContext, apiBuf);
+    }
+
+    
+    // appned on the rgbValidationData (quote info singature)
+    // onto the end of the quote buffer
+    
+    quoteBufLen = bPointer - quoteBuf;
     quoteBuf = realloc(quoteBuf, quoteBufLen + valid.ulValidationDataLength);
 
     if (!quoteBuf) {
