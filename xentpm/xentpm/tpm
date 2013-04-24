@@ -54,7 +54,7 @@ def call_get_aik_tcpa():
 
 def call_gen_aik():
     xencert = ""
-    (rc,xencert,stderr) = doexec([xe, "host-get-server-certificate",])
+    (rc,xencert,stderr) = doexec(["xe", "host-get-server-certificate",])
     if rc != 0:
         xencert = ""
 
