@@ -16,6 +16,7 @@
 
 #define CONFIG_FILE "/opt/xensource/tpm/config"
 
+#define CHAR_BIT 8
 #define GET_SHORT_UINT16(buf,offset) ( (buf[offset] << CHAR_BIT) | buf[offset+1] )
 
 /*  XenTPM internal function
