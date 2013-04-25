@@ -142,6 +142,16 @@ int main(int argc, char *argv[])
     }//while
 clean:
     closelog();
-    return status;
+
+    //
+    // Shell return codes only go up to 255, but trouser error codes can be much larger than that.
+    // so send the real error code out on stderr and return 1 in the case of an error.  The python
+    // xapi plugin wrapper will do the right thing.
+    if (!status) {
+        return 0;
+    } else {
+        fprintf(stderr, "%d", status);
+        return 1;
+    }
 }    
 
