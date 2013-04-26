@@ -26,26 +26,25 @@ int get_aik_pem(char *aik_blob_path);
 int get_aik_tcpa(char *aik_blob_path); 
 int tpm_owned();
 int take_ownership();
-int get_ek();
-int get_ekcert();
+int get_endorsment_key();
+int get_endorsment_keycert();
 int print_base64(void* data, uint32_t len);
-int read_tpm_key(unsigned char *key, int keyLen);
-int tpm_free_context(TSS_HCONTEXT hContext,
-        TSS_HPOLICY hTPMPolicy);
-int tpm_create_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_HKEY *hSRK,
-        TSS_HPOLICY *hTPMPolicy, TSS_HPOLICY *hSrkPolicy); 
-int  tpm_init_context(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM,
-            TSS_HPOLICY *hTPMPolicy); 
-int load_aik_tpm(char * aik_blob_path, TSS_HCONTEXT hContext,
-        TSS_HKEY hSRK, TSS_HKEY* hAIK);
-BYTE* base64_decode(char *in, int * outLen);
-void
-sha1(TSS_HCONTEXT hContext, void *shaBuf, UINT32 shaBufLen, BYTE *digest);
+int read_tpm_key(unsigned char *key, int key_len);
+int tpm_free_context(TSS_HCONTEXT context,
+        TSS_HPOLICY tpm_handlePolicy);
+int tpm_create_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle, 
+        TSS_HKEY *srk_handle, TSS_HPOLICY *tpm_policy, TSS_HPOLICY *srk_policy); 
+int  tpm_init_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle,
+            TSS_HPOLICY *tpm_policy); 
+int load_aik_tpm(char * aik_blob_path, TSS_HCONTEXT context,
+        TSS_HKEY srk_handle, TSS_HKEY* aik_handle);
+BYTE* base64_decode(char *in, int * out_len);
+void sha1(TSS_HCONTEXT context, void *shabuf, UINT32 shabuf_len, BYTE *digest);
 int get_config_key(const char* key, char* val, int max_val_len);
 
 
 
-/* XenTPM externally function for Client
+/* XenTPM externally called function for Client
  * */
 int generate_aik(char *aik_blob_path, char* b64_xeni_key_pem); 
 int tpm_quote(char *nonce, char *aik_blob_file);

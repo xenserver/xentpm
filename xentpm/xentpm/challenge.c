@@ -12,31 +12,30 @@
 /* Foolowing function is called when
  * TPM challange api is called by user
  * input is the challange encoded in base_64
- * 
  */
 
 int tpm_challenge(char *aik_blob_path, char *b64_challenge)
 {
-    TSS_HCONTEXT hContext;
-    TSS_HTPM hTPM;
-    TSS_HKEY hSRK;
-    TSS_HKEY hAIK;
-    TSS_HPOLICY	hTPMPolicy;
-    TSS_HPOLICY	hSrkPolicy;
+    TSS_HCONTEXT context;
+    TSS_HTPM tpm_handle;
+    TSS_HKEY srk_handle;
+    TSS_HKEY aik_handle;
+    TSS_HPOLICY	tpm_policy;
+    TSS_HPOLICY	srk_policy;
     BYTE *response;
     UINT32 responseLen;
-    BYTE *asymCAData;
-    UINT32 asymCADataLen;
-    BYTE *symCAData;
-    UINT32 symCADataLen;
-    BYTE* challengeBuf = NULL;
-    int challengeLen;
+    BYTE *asymCA_data;
+    UINT32 asymCA_data_len;
+    BYTE *symCA_data;
+    UINT32 symCA_data_len;
+    BYTE* challenge = NULL;
+    int challenge_len;
     int	result;
 
     syslog(LOG_INFO, "Recieved a Challange");
 
-    result = tpm_create_context(&hContext, &hTPM, &hSRK, 
-            &hTPMPolicy, &hSrkPolicy); 
+    result = tpm_create_context(&context, &tpm_handle, &srk_handle, 
+            &tpm_policy, &srk_policy); 
 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error in aik context for generating aik");
@@ -44,28 +43,28 @@ int tpm_challenge(char *aik_blob_path, char *b64_challenge)
     }
     
 
-    if ( (result = load_aik_tpm(aik_blob_path, hContext,  hSRK, &hAIK)) != 0) {
+    if ( (result = load_aik_tpm(aik_blob_path, context,  srk_handle, &aik_handle)) != 0) {
         syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
         return result;
     }
     
-    challengeBuf = base64_decode(b64_challenge, &challengeLen);
+    challenge = base64_decode(b64_challenge, &challenge_len);
 
-    if (!challengeBuf) {
+    if (!challenge) {
         syslog(LOG_ERR, "Unable to b64 decode challange \n");
         return 1;
     }
         
 
-    // Parse the decoded challange from client
-    //  Challange has following format
-    //  4 byte size  // ASYM_CA_LENGHT
-    //  ASYM_CA_CONTENT  
-    //  4 bytes size
-    //  SYM_CA_Structure 
-   
+    /* Parse the decoded challange from client
+     *  Challange has following format
+     *  4 byte size  // ASYM_CA_LENGHT
+     *  ASYM_CA_CONTENT  
+     *  4 bytes size
+     *  SYM_CA_Structure 
+     */
     
-    //== Following are the structures we expect from the client
+    /* Following are the structures we expect from the client */
     
     /* SYM_CA_Structure Encrypt with EK */
     /*
@@ -85,28 +84,29 @@ int tpm_challenge(char *aik_blob_path, char *b64_challenge)
      **/
     
     
-    if (challengeLen < 2*sizeof(UINT32))
+    if (challenge_len < 2*sizeof(UINT32))
         goto badchal;
 
-    // First read the ASYM_CA_CONTENT    
-    asymCADataLen = ntohl(*(UINT32*)challengeBuf);
-    asymCAData = challengeBuf + sizeof(UINT32);
-    challengeBuf += asymCADataLen + sizeof(UINT32);
+    /* First read the ASYM_CA_CONTENT   */
+    asymCA_data_len = ntohl(*(UINT32*)challenge);
+    asymCA_data = challenge + sizeof(UINT32);
+    challenge += asymCA_data_len + sizeof(UINT32);
 
-    if (challengeLen < asymCADataLen+ 2*sizeof(UINT32))
+    if (challenge_len < asymCA_data_len+ 2*sizeof(UINT32))
         goto badchal;
     
-    // Rad the TPM_SYMMETRIC_KEY data 
-    symCADataLen = ntohl(*(UINT32*)challengeBuf);
+    /* Rad the TPM_SYMMETRIC_KEY data */
+    symCA_data_len = ntohl(*(UINT32*)challenge);
     
-    if (challengeLen != asymCADataLen + symCADataLen + 2*sizeof(UINT32))
+    if (challenge_len != asymCA_data_len + symCA_data_len + 2*sizeof(UINT32))
         goto badchal;
-    symCAData = challengeBuf + sizeof(UINT32);
+    symCA_data = challenge + sizeof(UINT32);
 
-    // Decrypt challenge data
+    /* Decrypt challenge data */
     
-    result = Tspi_TPM_ActivateIdentity(hTPM, hAIK, asymCADataLen, 
-                asymCAData, symCADataLen, symCAData, &responseLen, &response); 
+    result = Tspi_TPM_ActivateIdentity(tpm_handle, aik_handle, asymCA_data_len, 
+                asymCA_data, symCA_data_len, symCA_data, &responseLen,
+                &response); 
     
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_TPM_ActivateIdentity failed with 0x%X %s", 
@@ -114,15 +114,16 @@ int tpm_challenge(char *aik_blob_path, char *b64_challenge)
         return result;
     }
 
-    if ((result = print_base64(response,responseLen)) != 0) {
+    if ((result = print_base64(response, responseLen)) != 0) {
         syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
         return 1;
     }
 
-    result = tpm_free_context(hContext,hTPMPolicy);
+    result = tpm_free_context(context, tpm_policy);
 
     if (result != TSS_SUCCESS ) {
-        syslog(LOG_ERR, "Error in aik context for free %s and %d ",__FILE__,__LINE__);
+        syslog(LOG_ERR, "Error in aik context for free %s and %d ",__FILE__,
+            __LINE__);
         return result;
     }
     

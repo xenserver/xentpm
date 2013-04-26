@@ -11,7 +11,7 @@ int tpm_owned()
 
     errno = 0;
     
-    /* Currently trousers does not support two TPMs
+    /* Currently trousers does not support multiple TPMs
      * and the dev path is hardcoded to /dev/tpm0
      * Still the 'owned' property belongs to the driver and 
      * exposed via sysfs 
@@ -42,13 +42,13 @@ int tpm_owned()
 
 int take_ownership()
 {
-    TSS_HCONTEXT hContext;
-    TSS_HTPM hTPM;
+    TSS_HCONTEXT context;
+    TSS_HTPM tpm_handle;
     TSS_RESULT result;
-    TSS_HPOLICY tpmPolicy;
-    TSS_HKEY hSRK;
-    TSS_HPOLICY srkPolicy;
-    TSS_FLAG fSrkAttrs;
+    TSS_HPOLICY tpm_policy;
+    TSS_HKEY srk_handle;
+    TSS_HPOLICY srk_policy;
+    TSS_FLAG srk_attributes;
     BYTE tpm_key[SHA_DIGEST_LENGTH];    
     syslog(LOG_INFO, "Taking ownership of the TPM.\n");
 
@@ -66,7 +66,7 @@ int take_ownership()
     }
 
 
-    result = tpm_init_context(& hContext, &hTPM, &tpmPolicy);
+    result = tpm_init_context(& context, &tpm_handle, &tpm_policy);
 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x tpm_init_context %s \n", 
@@ -74,8 +74,8 @@ int take_ownership()
         return result;
     }
 
-    fSrkAttrs = TSS_KEY_TSP_SRK | TSS_KEY_AUTHORIZATION;
-    result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_RSAKEY, fSrkAttrs, &hSRK);
+    srk_attributes = TSS_KEY_TSP_SRK | TSS_KEY_AUTHORIZATION;
+    result = Tspi_Context_CreateObject(context, TSS_OBJECT_TYPE_RSAKEY, srk_attributes, &srk_handle);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_Context_CreateObject %s \n",
                 result,Trspi_Error_String(result));
@@ -83,14 +83,14 @@ int take_ownership()
     }
 
     // Set the SRK password
-    result = Tspi_GetPolicyObject(hSRK, TSS_POLICY_USAGE, &srkPolicy);
+    result = Tspi_GetPolicyObject(srk_handle, TSS_POLICY_USAGE, &srk_policy);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_GetPolicyObject %s \n", 
                 result, Trspi_Error_String(result));
         return result;
     }
 
-    result = Tspi_Policy_SetSecret(srkPolicy, TSS_SECRET_MODE_SHA1,
+    result = Tspi_Policy_SetSecret(srk_policy, TSS_SECRET_MODE_SHA1,
             (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error Setting SRK Password %s \n", Trspi_Error_String(result));
@@ -99,7 +99,7 @@ int take_ownership()
     //
     // Take ownership of the TPM
     // We expect the TPM to have an EK so Passing the third arg as 0.
-    result = Tspi_TPM_TakeOwnership(hTPM, hSRK, 0);
+    result = Tspi_TPM_TakeOwnership(tpm_handle, srk_handle, 0);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_TPM_TakeOwnership (%s)\n", result, Trspi_Error_String(result));
         return result;

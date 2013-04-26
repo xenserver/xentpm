@@ -12,21 +12,23 @@
 #define TCG_FULL_CERT                           0
 #define TCG_PARTIAL_SMALL_CERT                  1
 
+/* Get endorsement key (PEM) from TPM
+ * */
 
-int get_ek()
+int get_endorsment_key()
 {
-    TSS_HCONTEXT hContext;
-    TSS_HPOLICY	hTPMPolicy;
-    TSS_HPOLICY	hSrkPolicy;
-    TSS_HTPM hTPM;
-    TSS_HKEY hSRK;
+    TSS_HCONTEXT context;
+    TSS_HPOLICY	tpm_policy;
+    TSS_HPOLICY	srk_policy;
+    TSS_HTPM tpm_handle;
+    TSS_HKEY srk_handle;
     TSS_RESULT result;
-    TSS_HKEY hPubek;
+    TSS_HKEY pub_ek;
     UINT32 modulusLen;
     UINT32 exponentLen;
     BYTE *modulus;
     BYTE *exponent;
-    RSA *ekRsa;
+    RSA *ek_rsa;
     
     result = take_ownership();
     if (result) {
@@ -34,14 +36,14 @@ int get_ek()
         return result;
     }
 
-    result = tpm_create_context(&hContext, &hTPM, &hSRK, 
-            &hTPMPolicy, &hSrkPolicy); 
+    result = tpm_create_context(&context, &tpm_handle, &srk_handle, 
+            &tpm_policy, &srk_policy); 
 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error in aik context for generating ek");
         return result;
     }
-    result = Tspi_TPM_GetPubEndorsementKey (hTPM, TRUE, NULL, &hPubek);
+    result = Tspi_TPM_GetPubEndorsementKey (tpm_handle, TRUE, NULL, &pub_ek);
 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error Reading TPM EK 0x%x (%s) \n", result, Trspi_Error_String(result));
@@ -49,7 +51,7 @@ int get_ek()
         return result;
     }
 
-    result = Tspi_GetAttribData (hPubek, TSS_TSPATTRIB_RSAKEY_INFO,
+    result = Tspi_GetAttribData (pub_ek, TSS_TSPATTRIB_RSAKEY_INFO,
             TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, &modulusLen, &modulus);
 
     if (result != TSS_SUCCESS) {
@@ -58,29 +60,29 @@ int get_ek()
     }
 
     if (modulusLen != TSS_DAA_LENGTH_N) {
-        Tspi_Context_FreeMemory (hContext, modulus);
+        Tspi_Context_FreeMemory (context, modulus);
         syslog(LOG_ERR, "Error TPM EK RSA %s \n", Trspi_Error_String(result));
         return 1;
     }
 
-    result = Tspi_GetAttribData(hPubek, TSS_TSPATTRIB_RSAKEY_INFO,
+    result = Tspi_GetAttribData(pub_ek, TSS_TSPATTRIB_RSAKEY_INFO,
             TSS_TSPATTRIB_KEYINFO_RSA_EXPONENT, &exponentLen, &exponent);
 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_Context_GetAttr Exponent\n", result);
-        Tspi_Context_FreeMemory(hContext, modulus);
+        Tspi_Context_FreeMemory(context, modulus);
         return result;
     }
 
-    Tspi_Context_CloseObject (hContext, hPubek);
-    ekRsa = RSA_new();
-    ekRsa->n = BN_bin2bn (modulus, modulusLen, NULL);
-    ekRsa->e = BN_bin2bn(exponent, exponentLen, NULL);
+    Tspi_Context_CloseObject (context, pub_ek);
+    ek_rsa = RSA_new();
+    ek_rsa->n = BN_bin2bn (modulus, modulusLen, NULL);
+    ek_rsa->e = BN_bin2bn(exponent, exponentLen, NULL);
 
-    PEM_write_RSA_PUBKEY(stdout, ekRsa);
-    RSA_free(ekRsa);
+    PEM_write_RSA_PUBKEY(stdout, ek_rsa);
+    RSA_free(ek_rsa);
     
-    result = tpm_free_context(hContext,hTPMPolicy);
+    result = tpm_free_context(context,tpm_policy);
 
     if (result != TSS_SUCCESS ) {
         syslog(LOG_ERR, "Error in aik context for free %s and %d ",
@@ -91,22 +93,25 @@ int get_ek()
     return 0;
 }
 
-int get_ekcert()
+/* Get Endoresement Key certificate  
+ * */
+
+int get_endorsment_keycert()
 {
-    TSS_HCONTEXT hContext;
-    TSS_HTPM hTPM;
-    TSS_HKEY hSRK;
-    TSS_HNVSTORE hNV;
-    TSS_HPOLICY	hNVPolicy;
-    TSS_HPOLICY	hTPMPolicy;
-    UINT32 blobLen;
-    UINT32 nvIndex = TSS_NV_DEFINED|TPM_NV_INDEX_EKCert;
+    TSS_HCONTEXT context;
+    TSS_HTPM tpm_handle;
+    TSS_HKEY srk_handle;
+    TSS_HNVSTORE nv_handle;
+    TSS_HPOLICY	nv_policy;
+    TSS_HPOLICY	tpm_policy;
+    UINT32 blob_len;
+    UINT32 nv_index = TSS_NV_DEFINED|TPM_NV_INDEX_EKCert;
     UINT32 offset;
-    UINT32 ekOffset;
-    UINT32 certBufLen;
-    BYTE *certBuf;
+    UINT32 ek_offset;
+    UINT32 certbuf_len;
+    BYTE *certbuf;
     BYTE *blob;
-    UINT32 tag, certType;
+    UINT32 tag, cert_type;
     int result;
     
     result = take_ownership();
@@ -115,21 +120,21 @@ int get_ekcert()
         return result;
     }
 
-    result = tpm_create_context(&hContext, &hTPM, &hSRK,
-            &hTPMPolicy, &hNVPolicy);
+    result = tpm_create_context(&context, &tpm_handle, &srk_handle,
+            &tpm_policy, &nv_policy);
 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error in aik context for generating ek");
         return result;
     }
 
-    result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_NV, 0, &hNV);
+    result = Tspi_Context_CreateObject(context, TSS_OBJECT_TYPE_NV, 0, &nv_handle);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_CreateObject(TSS_OBJECT_TYPE_NV) failed with 0x%X %s", 
             result, Trspi_Error_String(result));
         return result;
     }
-    result = Tspi_SetAttribUint32(hNV, TSS_TSPATTRIB_NV_INDEX, 0, nvIndex);
+    result = Tspi_SetAttribUint32(nv_handle, TSS_TSPATTRIB_NV_INDEX, 0, nv_index);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_SetAttribUint32 failed with 0x%X %s", 
             result, Trspi_Error_String(result));
@@ -139,14 +144,14 @@ int get_ekcert()
 
     /* Try reading certificate header from NV memory */
 
-    result = Tspi_Policy_AssignToObject(hNVPolicy, hNV);
+    result = Tspi_Policy_AssignToObject(nv_policy, nv_handle);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Policy_AssignToObject failed with 0x%X %s", 
             result, Trspi_Error_String(result));
         return result;
     }
 
-    blobLen = 5;
+    blob_len = 5;
   
     /* Follwing is the TGC spec for the TPM certifice in the NV RAM
      *
@@ -161,7 +166,7 @@ int get_ekcert()
     
 #define CERT_START_OFFSET 5  // see above cert header
     
-    result = Tspi_NV_ReadValue(hNV, 0, &blobLen, &blob);
+    result = Tspi_NV_ReadValue(nv_handle, 0, &blob_len, &blob);
 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_NV_ReadValue failed with 0x%X %s", 
@@ -170,24 +175,24 @@ int get_ekcert()
         return result;
     }
     
-    if (blobLen < CERT_START_OFFSET)
+    if (blob_len < CERT_START_OFFSET)
         goto parseerr;
     
-    tag =  GET_SHORT_UINT16(blob,0);  //// certificate tag in first two byte
+    tag =  GET_SHORT_UINT16(blob,0);  // certificate tag in first two byte
     
     if (tag != TCG_TAG_PCCLIENT_STORED_CERT)
         goto parseerr;
     
-    certType = blob[2]; // certtype at byte 2 --see header
+    cert_type = blob[2]; // certtype at byte 2 --see header
     
-    if (certType != TCG_FULL_CERT)
+    if (cert_type != TCG_FULL_CERT)
         goto parseerr;
     
-    certBufLen = GET_SHORT_UINT16(blob,3);  // total size of the certificate at offset 3
+    certbuf_len = GET_SHORT_UINT16(blob,3);  // total size of the certificate at offset 3
 
     offset = CERT_START_OFFSET;
 
-    result = Tspi_NV_ReadValue(hNV, offset, &blobLen, &blob); 
+    result = Tspi_NV_ReadValue(nv_handle, offset, &blob_len, &blob); 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_NV_ReadValue failed with 0x%X %s", 
                 result, Trspi_Error_String(result));
@@ -203,52 +208,51 @@ int get_ekcert()
 
     */
     
-    if (blobLen < sizeof(UINT16))
+    if (blob_len < sizeof(UINT16))
         goto parseerr;
     
-    tag = GET_SHORT_UINT16(blob,0); // type at offset 0
+    tag = GET_SHORT_UINT16(blob, 0); // type at offset 0
 
     if (tag == TCG_TAG_PCCLIENT_FULL_CERT) {
         offset += sizeof(UINT16);
-        certBufLen -= sizeof(UINT16);
+        certbuf_len -= sizeof(UINT16);
     } else 	{ /* Marker of cert structure */
             syslog(LOG_ERR, "TPM does not contain FULL CERT ");
             goto parseerr;
     }
 
     /* Read cert from chip in pieces - too large requests may fail */
-    certBuf = malloc(certBufLen);
+    certbuf = malloc(certbuf_len);
 
-    if (!certBuf) {
+    if (!certbuf) {
         syslog(LOG_ERR, "Malloc failed in %s and %d ",__FILE__,__LINE__);
         return 1;
     }
 
-    ekOffset = 0;
-    while (ekOffset < certBufLen) {
-        blobLen = certBufLen - ekOffset;
-        if (blobLen > BSIZE)
-            blobLen = BSIZE;
-        result = Tspi_NV_ReadValue(hNV, offset, &blobLen, &blob); 
+    ek_offset = 0;
+    while (ek_offset < certbuf_len) {
+        blob_len = certbuf_len - ek_offset;
+        if (blob_len > BSIZE)
+            blob_len = BSIZE;
+        result = Tspi_NV_ReadValue(nv_handle, offset, &blob_len, &blob); 
         if (result != TSS_SUCCESS) {
             syslog(LOG_ERR, "Tspi_NV_ReadValue failed with 0x%X %s", 
                     result, Trspi_Error_String(result));
             goto read_error;
         }
 
-        memcpy (certBuf+ekOffset, blob, blobLen);
-        /*		result = Tspi_Context_FreeMemory (hContext, blob); CKERR; */
-        offset += blobLen;
-        ekOffset += blobLen;
+        memcpy (certbuf+ek_offset, blob, blob_len);
+        offset += blob_len;
+        ek_offset += blob_len;
     }
 
 
-    if ((result = print_base64(certBuf,certBufLen)) != 0) {
+    if ((result = print_base64(certbuf, certbuf_len)) != 0) {
         syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
         goto read_error;
     }
     
-    result = tpm_free_context(hContext,hTPMPolicy);
+    result = tpm_free_context(context, tpm_policy);
 
     if (result != TSS_SUCCESS ) {
         syslog(LOG_ERR, "Error in aik context for free %s and %d ",
@@ -256,11 +260,11 @@ int get_ekcert()
         goto read_error;
     }
 
-    free(certBuf);
+    free(certbuf);
     return 0;
 
 read_error:
-    free(certBuf);
+    free(certbuf);
     return result;
 parseerr:
     syslog(LOG_ERR, "Failure, unable to parse certificate store structure\n");
