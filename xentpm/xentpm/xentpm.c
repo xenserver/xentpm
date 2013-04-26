@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
                     status = 1;
                     goto clean;
                 }
-                status = get_ek();
+                status = get_endorsment_key();
                 break;
 
             case 'k' : 
@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
                     status = 1;
                     goto clean;
                 }
-                status = get_ekcert();
+                status = get_endorsment_keycert();
                 break;
             case 'a' : 
                 if (argc < 3) {
