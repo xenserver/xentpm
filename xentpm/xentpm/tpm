@@ -21,61 +21,49 @@ xml_schema     = '<?xml version="1.0" encoding="UTF-8"?> \
    <xentxt:TPM_Attestation_KEY_TCPA>MA==</xentxt:TPM_Attestation_KEY_TCPA> \
 </xentxt:xentxtdata>'
 
+def process_error(rc):
+    if rc == '1':
+        raise Exception("Error: XenServer does not own the TPM. Please clear the TPM in the BIOS")
+    elif rc == '12305':
+        raise Exception("Error: There is no TPM on this machine or it is not enabled in the BIOS")
+    elif rc == '6':
+        raise Exception("Error: The TPM is deactivated.  Please activate the TPM in the BIOS.")
+    else:
+        raise Exception("Error: XenServer encountered a problem with the TPM on this machine")
+
 def doexec(args, inputtext=None):
     """Execute a subprocess, then return its return code, stdout and stderr"""
     proc = subprocess.Popen(args,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,close_fds=True)
     (stdout,stderr) = proc.communicate(inputtext)
     rc = proc.returncode
     if rc != 0:
-        rc = stderr
-    return (rc,stdout)
+        process_error(stderr)        
+    return (stdout)
 
 def call_get_endorsementkey():
-    (rc,stdout) = doexec([prg, "--get_ekey"])
-    if rc != 0:
-        raise Exception("Error: " + str(rc) + " getting the endorsement key")
-    return stdout
+    return doexec([prg, "--get_ekey"])
 
 def call_get_tpmcert():
-    (rc,stdout) = doexec([prg, "--get_ekcert"])
-    if rc != 0:
-        raise Exception("Error: " + str(rc) + " getting the TPM certificate")
-    return stdout
+    return doexec([prg, "--get_ekcert"])
 
 def call_get_aik_pem():
-    (rc,stdout) = doexec([prg, "--get_aik_pem", aikblob])
-    if rc != 0:
-        raise Exception("Error: " + str(rc) + " getting the AIK PEM")
-    return stdout
+    return  doexec([prg, "--get_aik_pem", aikblob])
 
 def call_get_aik_tcpa():
-    (rc,stdout) = doexec([prg, "--get_aik_tcpa", aikblob])
-    if rc != 0:
-        raise Exception("Error: " + str(rc) + " getting the AIK TCPA Pub Key")
-    return stdout
+    return doexec([prg, "--get_aik_tcpa", aikblob])
 
 def call_gen_aik():
-    xencert = ""
-    (rc,xencert) = doexec(["xe", "host-get-server-certificate",])
-    if rc != 0:
+    try :
+        xencert = doexec(["xe", "host-get-server-certificate",])
+    except:
         xencert = ""
-
-    (rc,stdout) = doexec([prg, "--gen_aik", aikblob, base64.b64encode(xencert)])
-    if rc != 0:
-        raise Exception("Error: " + str(rc) + " generation AIK")
-    return stdout
+    return doexec([prg, "--gen_aik", aikblob, base64.b64encode(xencert)])
 
 def call_tpm_challenge(challenge):
-    (rc,stdout) = doexec([prg, "--tpm_challenge", aikblob, challenge])
-    if rc != 0:
-        raise Exception("Error: " + str(rc) + " TPM challenge")
-    return stdout
+    return doexec([prg, "--tpm_challenge", aikblob, challenge])
 
 def call_tpm_quote(nonce):
-    (rc,stdout) = doexec([prg, "--tpm_quote", nonce, aikblob])
-    if rc != 0:
-        raise Exception("Error: " + str(rc) + " getting TPM quote")
-    return stdout
+    return doexec([prg, "--tpm_quote", nonce, aikblob])
 
 ##Create an XML with
 ## certifciate, public keys
