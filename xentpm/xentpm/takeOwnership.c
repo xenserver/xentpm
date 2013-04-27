@@ -1,14 +1,15 @@
-#include "xentpm.h"//
-// Read the /sys/class/misc/tpm0/device/owned file.
-// If it contains a 0, then the TPM is not owned.
-// If it contains a 1, then the TPM is owned.
-//
+#include "xentpm.h"
+
+/*
+* Read the /sys/class/misc/tpm0/device/owned file.
+* If it contains a 0, then the TPM is not owned.
+* If it contains a 1, then the TPM is owned.
+*/
 int tpm_owned()
 {
     int owned = 0;  // assume unowned
     FILE *file;
     char c;
-
     errno = 0;
     
     /* Currently trousers does not support multiple TPMs
@@ -53,7 +54,9 @@ int take_ownership()
     syslog(LOG_INFO, "Taking ownership of the TPM.\n");
 
 
-    // First check if the TPM is owned.  If it is not owned then xentpm needs to take ownership
+    /* First check if the TPM is owned. 
+     * iF it is not owned then xentpm needs to take ownership
+     */
     if (tpm_owned()) {
         // TPM is already owned so nothing to do.
         syslog(LOG_INFO, "TPM is already owned.\n");
@@ -82,7 +85,7 @@ int take_ownership()
         return result;
     }
 
-    // Set the SRK password
+    /* Set the SRK password */
     result = Tspi_GetPolicyObject(srk_handle, TSS_POLICY_USAGE, &srk_policy);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_GetPolicyObject %s \n", 
@@ -96,9 +99,9 @@ int take_ownership()
         syslog(LOG_ERR, "Error Setting SRK Password %s \n", Trspi_Error_String(result));
         return result;
     }
-    //
-    // Take ownership of the TPM
-    // We expect the TPM to have an EK so Passing the third arg as 0.
+    /* Take ownership of the TPM
+     * We expect the TPM to have an EK so Passing the third arg as 0.
+     */
     result = Tspi_TPM_TakeOwnership(tpm_handle, srk_handle, 0);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_TPM_TakeOwnership (%s)\n", result, Trspi_Error_String(result));

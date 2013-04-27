@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
                 status = get_endorsment_keycert();
                 break;
             case 'a' : 
-                if (argc < 3) {
+                if (argc < 3 || argc > 4) {
                     usage();
                     status = 1;
                     goto clean;
