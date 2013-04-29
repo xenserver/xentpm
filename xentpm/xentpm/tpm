@@ -37,7 +37,7 @@ def doexec(args, inputtext=None):
     (stdout,stderr) = proc.communicate(inputtext)
     rc = proc.returncode
     if rc != 0:
-        process_error(stderr)        
+        process_error(stderr)
     return (stdout)
 
 def call_get_endorsementkey():
@@ -53,9 +53,12 @@ def call_get_aik_tcpa():
     return doexec([prg, "--get_aik_tcpa", aikblob])
 
 def call_gen_aik():
-    try :
-        xencert = doexec(["xe", "host-get-server-certificate",])
+    xencert = ""
+    try:
+        host_ref = session.xenapi.session.get_this_host(session.handle)
+        xencert  = session.xenapi.host.get_server_certificate(host_ref)
     except:
+        #TODO :raise error ?
         xencert = ""
     return doexec([prg, "--gen_aik", aikblob, base64.b64encode(xencert)])
 
