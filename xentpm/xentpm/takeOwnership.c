@@ -10,8 +10,6 @@ int tpm_owned()
     int owned = 0;  // assume unowned
     FILE *file;
     char c;
-    errno = 0;
-    
     /* Currently trousers does not support multiple TPMs
      * and the dev path is hardcoded to /dev/tpm0
      * Still the 'owned' property belongs to the driver and 
@@ -31,7 +29,7 @@ int tpm_owned()
             owned = 1;
         }
     }
-
+    
     fclose(file);
 
     if (!owned) {
@@ -51,21 +49,20 @@ int take_ownership()
     TSS_HPOLICY srk_policy;
     TSS_FLAG srk_attributes;
     BYTE tpm_key[SHA_DIGEST_LENGTH];    
+    
     syslog(LOG_INFO, "Taking ownership of the TPM.\n");
-
-
     /* First check if the TPM is owned. 
      * iF it is not owned then xentpm needs to take ownership
      */
     if (tpm_owned()) {
         // TPM is already owned so nothing to do.
         syslog(LOG_INFO, "TPM is already owned.\n");
-        return 0;
+        return TSS_SUCCESS;
     }
 
     if ((result = read_tpm_key(tpm_key,SHA_DIGEST_LENGTH)) != 0) {
         syslog(LOG_ERR, "TPM Key Not Found \n");
-        return TSS_E_FAIL;
+        goto out;
     }
 
 
@@ -74,7 +71,7 @@ int take_ownership()
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x tpm_init_context %s \n", 
                 result,Trspi_Error_String(result));
-        return result;
+        goto free_context;
     }
 
     srk_attributes = TSS_KEY_TSP_SRK | TSS_KEY_AUTHORIZATION;
@@ -82,7 +79,7 @@ int take_ownership()
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_Context_CreateObject %s \n",
                 result,Trspi_Error_String(result));
-        return result;
+        goto free_context;
     }
 
     /* Set the SRK password */
@@ -90,25 +87,29 @@ int take_ownership()
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_GetPolicyObject %s \n", 
                 result, Trspi_Error_String(result));
-        return result;
+        goto free_context;
     }
 
     result = Tspi_Policy_SetSecret(srk_policy, TSS_SECRET_MODE_SHA1,
             (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error Setting SRK Password %s \n", Trspi_Error_String(result));
-        return result;
+        goto free_context;
     }
     /* Take ownership of the TPM
      * We expect the TPM to have an EK so Passing the third arg as 0.
      */
     result = Tspi_TPM_TakeOwnership(tpm_handle, srk_handle, 0);
+
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_TPM_TakeOwnership (%s)\n", result, Trspi_Error_String(result));
-        return result;
+        goto free_context;
     }
 
     syslog(LOG_INFO, "XenServer now owns the TPM.\n");
 
-    return 0;
+free_context:  
+    tpm_free_context(context, tpm_policy);
+out:
+    return result;
 }
