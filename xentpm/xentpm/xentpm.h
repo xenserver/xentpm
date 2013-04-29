@@ -55,8 +55,10 @@ int generate_aik(char *aik_blob_path, char* b64_xeni_key_pem);
 int tpm_quote(char *nonce, char *aik_blob_file);
 int tpm_challenge(char *aik_blob_file, char *challenge);
 
+/* Error Codes  */
 #define XEN_INTERNAL_ERR -3
 #define XEN_CERT_ERR -4
+#define XEN_CERT_PARSE_ERR -5
 #define XEN_CONFIG_KEY_ERR -6
 #define XEN_CONFIG_FILE_ERR -7
 #define XEN_MISSING_AIK_ERR -8

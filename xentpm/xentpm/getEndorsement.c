@@ -99,7 +99,7 @@ int get_endorsment_keycert()
     TSS_HPOLICY	nv_policy;
     TSS_HPOLICY	tpm_policy;
     UINT32 blob_len;
-    UINT32 nv_index = TSS_NV_DEFINED|TPM_NV_INDEX_EKCert;
+    UINT32 nv_index;
     UINT32 offset;
     UINT32 ek_offset;
     UINT32 certbuf_len;
@@ -109,30 +109,32 @@ int get_endorsment_keycert()
     int result;
     
     result = take_ownership();
-    if (result) {
+    if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
-        return result;
+        goto out;
     }
 
     result = tpm_create_context(&context, &tpm_handle, &srk_handle,
             &tpm_policy, &nv_policy);
 
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error in aik context for generating ek");
-        return result;
+        syslog(LOG_ERR, "Error in aik context for generating ek");  
+        goto out;
     }
 
     result = Tspi_Context_CreateObject(context, TSS_OBJECT_TYPE_NV, 0, &nv_handle);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_CreateObject(TSS_OBJECT_TYPE_NV) failed with 0x%X %s", 
             result, Trspi_Error_String(result));
-        return result;
+        goto free_context;
     }
+    
+    nv_index = TSS_NV_DEFINED|TPM_NV_INDEX_EKCert;
     result = Tspi_SetAttribUint32(nv_handle, TSS_TSPATTRIB_NV_INDEX, 0, nv_index);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_SetAttribUint32 failed with 0x%X %s", 
             result, Trspi_Error_String(result));
-        return result;
+        goto free_context;
     }
 
 
@@ -142,10 +144,9 @@ int get_endorsment_keycert()
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Policy_AssignToObject failed with 0x%X %s", 
             result, Trspi_Error_String(result));
-        return result;
+        goto free_context;
     }
 
-    blob_len = 5;
   
     /* Follwing is the TGC spec for the TPM certifice in the NV RAM
      *
@@ -157,40 +158,51 @@ int get_endorsment_keycert()
     } TCG_PCCLIENT_STORED_CERT ;
     Minimum total 5 bytes
     */
-    
 #define CERT_START_OFFSET 5  // see above cert header
     
+    blob_len = CERT_START_OFFSET;
     result = Tspi_NV_ReadValue(nv_handle, 0, &blob_len, &blob);
 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_NV_ReadValue failed with 0x%X %s", 
             result, Trspi_Error_String(result));
         syslog(LOG_ERR, "Unable to read EK Certificate from TPM\n");
-        return result;
+        goto free_context;
     }
     
-    if (blob_len < CERT_START_OFFSET)
-        goto parseerr;
+    
+    if (blob_len < CERT_START_OFFSET) {
+        syslog(LOG_ERR, "Failure, cert blob len smaller then cert offset\n");
+        result = XEN_CERT_PARSE_ERR; 
+        goto free_context;
+    }
     
     tag =  GET_SHORT_UINT16(blob,0);  // certificate tag in first two byte
-    
-    if (tag != TCG_TAG_PCCLIENT_STORED_CERT)
-        goto parseerr;
-    
+   
+
+    if (tag != TCG_TAG_PCCLIENT_STORED_CERT) {
+        syslog(LOG_ERR, "Failure, cert tag not TCG_TAG_PCCLIENT_STORED_CERT\n");
+        result = XEN_CERT_PARSE_ERR; 
+        goto free_context;
+    }
+
     cert_type = blob[2]; // certtype at byte 2 --see header
     
-    if (cert_type != TCG_FULL_CERT)
-        goto parseerr;
+    if (cert_type != TCG_FULL_CERT) {
+        syslog(LOG_ERR, "Failure, cert type not TCG_FULL_CERT\n");
+        result = XEN_CERT_PARSE_ERR; 
+        goto free_context;
+    }
     
-    certbuf_len = GET_SHORT_UINT16(blob,3);  // total size of the certificate at offset 3
-
+    certbuf_len = GET_SHORT_UINT16(blob,3);  // total size of the certificate at offset = 3;
     offset = CERT_START_OFFSET;
-
     result = Tspi_NV_ReadValue(nv_handle, offset, &blob_len, &blob); 
+    
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_NV_ReadValue failed with 0x%X %s", 
                 result, Trspi_Error_String(result));
-        return result;
+        result = XEN_CERT_PARSE_ERR; 
+        goto free_context;
     }
    
     /* following is the certificate structure
@@ -202,8 +214,11 @@ int get_endorsment_keycert()
 
     */
     
-    if (blob_len < sizeof(UINT16))
-        goto parseerr;
+    if (blob_len < sizeof(UINT16)) {
+        syslog(LOG_ERR, "Failure, unable read certificate");
+        result = XEN_CERT_PARSE_ERR; 
+        goto free_context;
+    }
     
     tag = GET_SHORT_UINT16(blob, 0); // type at offset 0
 
@@ -211,24 +226,27 @@ int get_endorsment_keycert()
         offset += sizeof(UINT16);
         certbuf_len -= sizeof(UINT16);
     } else 	{ /* Marker of cert structure */
+            result = XEN_CERT_PARSE_ERR; 
             syslog(LOG_ERR, "TPM does not contain FULL CERT ");
-            goto parseerr;
+            goto free_context;
     }
 
-    /* Read cert from chip in pieces - too large requests may fail */
+    /* Read cert from chip in chunks */
     certbuf = malloc(certbuf_len);
 
     if (!certbuf) {
         syslog(LOG_ERR, "Malloc failed in %s and %d ",__FILE__,__LINE__);
-        return 1;
+        result = XEN_INTERNAL_ERR;
     }
 
     ek_offset = 0;
     while (ek_offset < certbuf_len) {
         blob_len = certbuf_len - ek_offset;
+        
         if (blob_len > BSIZE)
             blob_len = BSIZE;
         result = Tspi_NV_ReadValue(nv_handle, offset, &blob_len, &blob); 
+        
         if (result != TSS_SUCCESS) {
             syslog(LOG_ERR, "Tspi_NV_ReadValue failed with 0x%X %s", 
                     result, Trspi_Error_String(result));
@@ -240,27 +258,15 @@ int get_endorsment_keycert()
         ek_offset += blob_len;
     }
 
-
     if ((result = print_base64(certbuf, certbuf_len)) != 0) {
         syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
-        goto read_error;
     }
     
-    result = tpm_free_context(context, tpm_policy);
-
-    if (result != TSS_SUCCESS ) {
-        syslog(LOG_ERR, "Error in aik context for free %s and %d ",
-                __FILE__,__LINE__);
-        goto read_error;
-    }
-
-    free(certbuf);
-    return 0;
-
 read_error:
     free(certbuf);
+free_context:
+    tpm_free_context(context, tpm_policy);
+out:
     return result;
-parseerr:
-    syslog(LOG_ERR, "Failure, unable to parse certificate store structure\n");
-    return 2;
+
 }
