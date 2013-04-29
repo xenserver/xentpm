@@ -39,20 +39,20 @@ int tpm_challenge(char *aik_blob_path, char *b64_challenge)
 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error in aik context for generating aik");
-        return result;
+        goto out;
     }
-    
 
     if ( (result = load_aik_tpm(aik_blob_path, context,  srk_handle, &aik_handle)) != 0) {
         syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
-        return result;
+        goto free_context;
     }
     
     challenge = base64_decode(b64_challenge, &challenge_len);
 
     if (!challenge) {
         syslog(LOG_ERR, "Unable to b64 decode challange \n");
-        return 1;
+        result = TSS_E_BAD_PARAMETER;
+        goto free_context;
     }
         
 
@@ -84,22 +84,31 @@ int tpm_challenge(char *aik_blob_path, char *b64_challenge)
      **/
     
     
-    if (challenge_len < 2*sizeof(UINT32))
-        goto badchal;
-
+    if (challenge_len < 2*sizeof(UINT32)){
+        result = TSS_E_BAD_PARAMETER;
+        syslog(LOG_ERR, "Challenge Length too small\n");
+        goto free_context;
+    }
     /* First read the ASYM_CA_CONTENT   */
     asymCA_data_len = ntohl(*(UINT32*)challenge);
     asymCA_data = challenge + sizeof(UINT32);
     challenge += asymCA_data_len + sizeof(UINT32);
 
-    if (challenge_len < asymCA_data_len+ 2*sizeof(UINT32))
-        goto badchal;
+    if (challenge_len < asymCA_data_len+ 2*sizeof(UINT32)) {
+        syslog(LOG_ERR, "Challenge incomplete\n");
+        result = TSS_E_BAD_PARAMETER;
+        goto free_context;
+    }
     
     /* Rad the TPM_SYMMETRIC_KEY data */
     symCA_data_len = ntohl(*(UINT32*)challenge);
     
-    if (challenge_len != asymCA_data_len + symCA_data_len + 2*sizeof(UINT32))
-        goto badchal;
+    if (challenge_len != asymCA_data_len + symCA_data_len + 2*sizeof(UINT32)) {
+        syslog(LOG_ERR, "Challenge does not have SYM and ASYM keys\n");
+        result = TSS_E_BAD_PARAMETER;
+        goto free_context;
+    }
+   
     symCA_data = challenge + sizeof(UINT32);
 
     /* Decrypt challenge data */
@@ -111,26 +120,19 @@ int tpm_challenge(char *aik_blob_path, char *b64_challenge)
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_TPM_ActivateIdentity failed with 0x%X %s", 
             result, Trspi_Error_String(result));
-        return result;
+        goto free_context;
     }
 
     if ((result = print_base64(response, responseLen)) != 0) {
         syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
-        return 1;
+        goto free_context;
     }
 
-    result = tpm_free_context(context, tpm_policy);
+    syslog(LOG_INFO, "XenTPM challange success!\n");
+    
+free_context:
+    tpm_free_context(context, tpm_policy);
+out:
+    return result;
 
-    if (result != TSS_SUCCESS ) {
-        syslog(LOG_ERR, "Error in aik context for free %s and %d ",__FILE__,
-            __LINE__);
-        return result;
-    }
-    
-    syslog(LOG_INFO, "Success in response!\n");
-    return 0;
-    
-badchal:
-    syslog(LOG_ERR, "Challenge file format is wrong\n");
-    return 1;
 }
