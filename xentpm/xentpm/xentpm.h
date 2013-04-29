@@ -15,9 +15,14 @@
 #include <trousers/trousers.h>
 
 #define CONFIG_FILE "/opt/xensource/tpm/config"
+#define CITRIX_LABEL_STR "citrix"
 
 #define CHAR_BIT 8
 #define GET_SHORT_UINT16(buf,offset) ( (buf[offset] << CHAR_BIT) | buf[offset+1] )
+
+
+#define MAX_CONFIG_KEY_LEN 1024
+#define CONFIG_TPM_PASSWORD_KEY "password"
 
 /*  XenTPM internal function
  */
@@ -44,10 +49,18 @@ int get_config_key(const char* key, char* val, int max_val_len);
 
 
 
-/* XenTPM externally called function for Client
+/* XenTPM Client calls
  * */
 int generate_aik(char *aik_blob_path, char* b64_xeni_key_pem); 
 int tpm_quote(char *nonce, char *aik_blob_file);
 int tpm_challenge(char *aik_blob_file, char *challenge);
+
+#define XEN_INTERNAL_ERR -3
+#define XEN_CERT_ERR -4
+#define XEN_CONFIG_KEY_ERR -6
+#define XEN_CONFIG_FILE_ERR -7
+#define XEN_MISSING_AIK_ERR -8
+#define XEN_CORRUPT_AIK_ERR -9
+#define XEN_SUCCESS 0
 
 #endif

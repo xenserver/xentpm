@@ -3,9 +3,14 @@
 #include <string.h>
 #include <ctype.h>
 
-
+/* Internal function
+ *
+ * */
 static int get_key_bytes(unsigned char * md, unsigned char * buf);
 static char get_val(char c);
+
+/* Base64 conversion
+ * */
 
 int print_base64(void* data, UINT32 len)
 {
@@ -21,32 +26,34 @@ int print_base64(void* data, UINT32 len)
     char *b64Buff = (char*)malloc(bptr->length);
     
     if (!b64Buff) {
-        syslog(LOG_ERR, "Error in memory allocation %s and %d ",__FILE__,__LINE__);
-        return 1;
+        syslog(LOG_ERR, "Error in memory allocation %s and %d ",__FILE__,
+            __LINE__);
+        return XEN_INTERNAL_ERR;
     } 
     memcpy(b64Buff, bptr->data, bptr->length-1);
     b64Buff[bptr->length-1] = 0;
     BIO_free_all(b64);
     printf(b64Buff);
     free(b64Buff);
-    return 0;
+    return XEN_SUCCESS;
 }
 
 int read_tpm_key(unsigned char *key, int keyLen)
 {
     unsigned char key_buf[2*SHA_DIGEST_LENGTH + 1]; // sha1 in hex
-    int result;
+    int result = 0;;
 
-    if ((result = get_config_key("password", key_buf, sizeof(key_buf))) != 0) {
-        return 1;
+    if ((result = get_config_key(CONFIG_TPM_PASSWORD_KEY, key_buf, 
+        sizeof(key_buf))) != 0) {
+        goto out;
     }
     
     if ((result = get_key_bytes(key,key_buf)) != 0)  {
-        syslog(LOG_ERR, "Error readin key from %s\n",CONFIG_FILE);
-        return 1;
+        syslog(LOG_ERR, "Error converting key bytes %s\n",key);
+        result = XEN_CONFIG_KEY_ERR;
     }
-
-    return 0;
+out:
+    return result;
 }
 
 //convert sha1 hex string to sha1 bytes
@@ -67,25 +74,20 @@ static int get_key_bytes(unsigned char * md, unsigned char * buf)
     return 0;
 }
 
+/* Hex to Decimal
+ * */
 static char get_val(char c) 
 {
-    char result;
     if (isdigit(c))
-        result = c-'0';
+        return  ( c - '0');
     else if (isupper(c))
-        result = c-'A' + 10;
+        return  (c - 'A' + 10);
     else if (islower(c))
-        result = c-'a' + 10;
-    else
-        return -1;
-    return result;
+        return (c - 'a' + 10);
+    return -1;
 }
 
 
-// TODO : Error 
-// missing key
-// corrupt key
-//
 int load_aik_tpm(char * aik_blob_path, TSS_HCONTEXT context,
         TSS_HKEY srk_handle, TSS_HKEY* aik_handle)
 {
@@ -95,8 +97,9 @@ int load_aik_tpm(char * aik_blob_path, TSS_HCONTEXT context,
     int	    result;
     
     if ((f_in = fopen(aik_blob_path, "rb")) == NULL) {
-        syslog(LOG_ERR, "Unable to open file %s\n", aik_blob_path);
-        result = 18; // aik missing from disk 
+        syslog(LOG_ERR, "Unable to open file %s err: %s\n",
+            aik_blob_path, strerror(errno));
+        result = XEN_MISSING_AIK_ERR; // aik missing from disk 
         goto out;
     }
     
@@ -108,13 +111,14 @@ int load_aik_tpm(char * aik_blob_path, TSS_HCONTEXT context,
     if (!aik_blob) {
         syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",
             __FILE__,__LINE__);
-        result = 1;
+        result = XEN_INTERNAL_ERR;
         goto close;
     }
 
     if (fread(aik_blob, 1, aik_blob_len, f_in) != aik_blob_len) {
-        syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
-        result = 15; // unable to read ak from disk 
+        syslog(LOG_ERR, "Unable to readn file %s err: %s\n", 
+            aik_blob_path, strerror(errno));
+        result = XEN_CORRUPT_AIK_ERR; // unable to read ak from disk 
         goto free_blob;
     }
     
@@ -124,19 +128,20 @@ int load_aik_tpm(char * aik_blob_path, TSS_HCONTEXT context,
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", 
             result, Trspi_Error_String(result));
+        result = XEN_CORRUPT_AIK_ERR; // unable to load aik 
     }
 
- free_blob:
+free_blob:
     free(aik_blob);
- close:
+close:
     fclose(f_in);
- out:  
+out:  
    return result;
 
 }
 
- /* Decode the 'in' string
-  * */
+ /* base64 decode 'in' string
+ */
 
 BYTE* base64_decode(char *in, int * outlen)
 {
@@ -179,18 +184,22 @@ sha1(TSS_HCONTEXT context, void *shabuf, UINT32 shabuf_len, BYTE *digest)
     Tspi_Context_CloseObject(context, hash);
 }
 
+/*Read a key from config file
+ * TODO: white space removal
+ * */
 int get_config_key(const char* key, char* val, int max_val_len)
 {
     char *k;
     char *v;
     int ret;
-    char buffer[1024];
+    char buffer[MAX_CONFIG_KEY_LEN];
 
     FILE* fp = fopen(CONFIG_FILE,"r");
 
     if(!fp) {
-        syslog(LOG_ERR, "Unable to open %s for reading\n", CONFIG_FILE);
-        return 1;
+        syslog(LOG_ERR, "Unable to open %s for reading err: %s \n",
+            CONFIG_FILE, strerror(errno));
+        return XEN_CONFIG_FILE_ERR;
     }
 
     while (fgets(buffer, sizeof buffer, fp) != NULL) {
@@ -200,14 +209,21 @@ int get_config_key(const char* key, char* val, int max_val_len)
         if ( k && ((ret = strcmp(k, key))== 0) ) {
             v = strtok(NULL, "\r\n");
             if (v) {
-                strncpy(val, v, max_val_len);
+                if (strlen(v) >  max_val_len) {
+                    syslog(LOG_ERR, "Key %s value %s bigger then expected value \
+                        size \n", key,v );
+                    goto err;
+                }
+                strcpy(val, v);
                 fclose(fp);
-                return 0;
+                return XEN_SUCCESS;
             }
         }
     }
+err:
+    syslog(LOG_ERR, "Unable to read key  %s \n", key);
     fclose(fp);
-    return 1;
+    return XEN_CONFIG_KEY_ERR;
 }
 
 /* Init context
@@ -269,14 +285,14 @@ int  tpm_init_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle,
         goto error_obj;
     }   
 
-    goto out; // Dont free the objects
+    goto out; // Caller will free all
 
- error_obj:
+error_obj:
     Tspi_Context_CloseObject(*context, *tpm_policy);
- error_close:
+error_close:
     Tspi_Context_FreeMemory (*context, NULL);
     Tspi_Context_Close(*context);
- out:
+out:
     return result;
 }
 
@@ -291,14 +307,14 @@ int tpm_create_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle, TSS_HKEY *sr
     
     if ((result = read_tpm_key(tpm_key, SHA_DIGEST_LENGTH)) != 0) {
         syslog(LOG_ERR, "TPM Key Not Found \n");
-        goto error;
+        goto out;
     }
 
     result =  tpm_init_context(context, tpm_handle, tpm_policy);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Context_Create failed with 0x%X %s", 
             result, Trspi_Error_String(result));
-        goto error;
+        goto out;
     }
 
 
@@ -325,10 +341,10 @@ int tpm_create_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle, TSS_HKEY *sr
         syslog(LOG_ERR, "Tspi_Policy_SetSecret(SRK) failed with 0x%X %s", 
             result, Trspi_Error_String(result));
     }
-
- error_free:
+    goto out; // Caller will free the context
+error_free:
     tpm_free_context(*context, *tpm_policy);
- error:
+out:
     return result;
 }
 

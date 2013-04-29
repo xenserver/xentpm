@@ -4,10 +4,9 @@
 #include "xentpm.h"
 #include <unistd.h>
 #include <limits.h>
-
 /* Get Xen public Key from host certificate
  * */
-static void
+static int
 get_xen_rsa_modulus(char* b64_xen_cert, BYTE* CA_Key, unsigned int size)
 {
     BIO *bufio;
@@ -17,30 +16,37 @@ get_xen_rsa_modulus(char* b64_xen_cert, BYTE* CA_Key, unsigned int size)
     BYTE* modulus_buffer;
     int key_len ;
     BYTE* key_buffer = NULL; ;
-    memset (CA_Key, 0xff, size);
+    int result = -1; 
     
-    if (!b64_xen_cert)
-        goto set_const;
-
+    if (!b64_xen_cert) {
+        syslog(LOG_ERR , "Xen Server Certificate not present \n");
+        goto out;
+    }
+    
     key_buffer = base64_decode(b64_xen_cert, &key_len);
 
     if (!key_buffer) {
-        goto set_const;
+        syslog(LOG_ERR , "Unable to decode Xen cert  %s\n",b64_xen_cert);
+        goto out;
     }
 
     bufio = BIO_new_mem_buf((void*)key_buffer, key_len);
 
-    if ((x509 = PEM_read_bio_X509(bufio, NULL, NULL, NULL)) == NULL) {
+    if (!bufio && 
+        ((x509 = PEM_read_bio_X509(bufio, NULL, NULL, NULL)) == NULL)) {
+        syslog(LOG_ERR , "Unable to decode the Xen cert  %s\n",b64_xen_cert);
         goto free_key;
     }
 
     rsa = X509_get_pubkey(x509)->pkey.rsa;
 
     if(!rsa){
+        syslog(LOG_ERR , "Unable to read pub key from Xen Cert  \
+            %s\n",b64_xen_cert);
         goto free_x509;
     }
+    
     modulus_len = BN_num_bytes(rsa->n);
-
     modulus_buffer = (BYTE*)malloc(modulus_len);
 
     if (!modulus_buffer) {
@@ -56,19 +62,23 @@ get_xen_rsa_modulus(char* b64_xen_cert, BYTE* CA_Key, unsigned int size)
     if (modulus_len < size) {
         memcpy(CA_Key, modulus_buffer, modulus_len);
         memset(CA_Key+ modulus_len, 0xff, size - modulus_len);
-        goto free_modulus; 
+        syslog(LOG_INFO , "Partial PCA Key, Xen Key size is %x,\n",modulus_len);
     }
-    else
+    else if (modulus_len > size) {
+        syslog(LOG_INFO , "Partial Xen Key for CA, Xen key size is %x,\n",modulus_len);
         memcpy(CA_Key, modulus_buffer, size);
-
-free_modulus:
+    }
+    else {
+        memcpy(CA_Key, modulus_buffer, size);
+    }    
+    result = 0;
     free(modulus_buffer);
 free_x509:
     X509_free(x509);
 free_key:    
     free(key_buffer);
-set_const:
-    return;
+out:
+    return result;
 }
 
 
@@ -89,12 +99,12 @@ int generate_aik(char *aik_blob_path, char* b64_xen_cert)
     UINT32 tcpablob_len;
     BYTE*  attrblob;
     UINT32 attrblob_len;
-    int  result;
+    int  result = 0 ;
 
     result = take_ownership();
     if (result) {
         syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
-        return result;
+        goto out;
     }
    // TODO : fail if blob is present with a specific err code
    //     error on     : blob already present 
@@ -109,56 +119,60 @@ int generate_aik(char *aik_blob_path, char* b64_xen_cert)
 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error in aik context for generating aik");
-        return result;
+        goto out;
     }
 
     /* Privacy CA key 
      * use XenServer Public Key 
      */
     result = Tspi_Context_CreateObject(context,
-                TSS_OBJECT_TYPE_RSAKEY,
-                TSS_KEY_TYPE_LEGACY|TSS_KEY_SIZE_2048,
+            TSS_OBJECT_TYPE_RSAKEY,
+            TSS_KEY_TYPE_LEGACY|TSS_KEY_SIZE_2048,
                 &pca_handle);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Context_CreateObject(RSAKEY, TSS_KEY_TYPE_LEGACY) \
             failed with 0x%X %s", 
             result, Trspi_Error_String(result));
-        return result;
+        goto free_context;
     }
 
-    get_xen_rsa_modulus(b64_xen_cert, CA_Key, sizeof(CA_Key));
+    if ((result = get_xen_rsa_modulus(b64_xen_cert, CA_Key, 
+            sizeof(CA_Key))) != 0) {
+        result = XEN_CERT_ERR;  
+        goto free_context;
+    }
     
     result = Tspi_SetAttribData(pca_handle, TSS_TSPATTRIB_RSAKEY_INFO,
             TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, sizeof(CA_Key), CA_Key); 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_SetAttribData(PCA, RSAKEY_INFO) failed with 0x%X %s", 
-            result, Trspi_Error_String(result));
-        return result;
+                result, Trspi_Error_String(result));
+        goto free_context;
     }
 
 
     /* Create AIK object */
     result = Tspi_Context_CreateObject(context,
-            TSS_OBJECT_TYPE_RSAKEY,
-            TSS_KEY_TYPE_IDENTITY | TSS_KEY_SIZE_2048, &aik_handle);
+            TSS_OBJECT_TYPE_RSAKEY, TSS_KEY_TYPE_IDENTITY | TSS_KEY_SIZE_2048, 
+            &aik_handle);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_CreateObject(RSAKEY, TSS_KEY_TYPE_IDENTITY) failed with 0x%X %s", 
-            result, Trspi_Error_String(result));
-        return result;
+        syslog(LOG_ERR, "Tspi_CreateObject(RSAKEY, TSS_KEY_TYPE_IDENTITY) \
+                failed with 0x%X %s", 
+                result, Trspi_Error_String(result));
+        goto free_context;
     }
 
 
     /* Generate new AIK  */
     //TODO set label to citrix and set len
-   result = Tspi_TPM_CollateIdentityRequest(tpm_handle, srk_handle, pca_handle, 0, "",
-            aik_handle, TSS_ALG_AES, &tcpablob_len, &tcpablob);
+    result = Tspi_TPM_CollateIdentityRequest(tpm_handle, srk_handle, pca_handle, 
+            strlen("citrix"), "citrix", aik_handle, TSS_ALG_AES, &tcpablob_len, 
+            &tcpablob);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_CollateIdentityRequest failed with 0x%X %s", 
-            result, Trspi_Error_String(result));
-        return result;
+                result, Trspi_Error_String(result));
+        goto free_context;
     }
-
-    Tspi_Context_FreeMemory(context, tcpablob);
 
     /* Output file with AIK blob for TPM future Use 
      * The output of this call is TPM_KEY(12) struct
@@ -169,38 +183,30 @@ int generate_aik(char *aik_blob_path, char* b64_xen_cert)
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_GetAttribData(KEY_BLOB) failed with 0x%X %s", 
             result, Trspi_Error_String(result));
-        return result;
+        goto free_context;
     }
 
 
     if ((f_out = fopen (aik_blob_path, "wb")) == NULL) {
-        syslog(LOG_ERR, "Unable to open %s for output\n", aik_blob_path);
-        return 1;
+        syslog(LOG_ERR, "Unable to open %s for output err: %s\n", 
+            aik_blob_path, strerror(errno));
+        result = XEN_INTERNAL_ERR;
+        goto free_context;
     }
     if (fwrite (attrblob, 1, attrblob_len, f_out) != attrblob_len) {
-        syslog(LOG_ERR, "Unable to write to %s\n", aik_blob_path);
-        return 1;
+        syslog(LOG_ERR, "Unable to write to %s err: %s\n", 
+            aik_blob_path, strerror(errno));
+        result = XEN_INTERNAL_ERR;
+        goto free_context;
     }
     fclose (f_out);
-
     /*free all memory with this context 
      * close context object
      */
-    result = Tspi_Context_CloseObject(context, aik_handle);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_CloseObject failed  0x%X %s", 
-            result, Trspi_Error_String(result));
-       // return result;
-    }
-    result = Tspi_Context_CloseObject(context, pca_handle);
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_CloseObject failed with 0x%X %s", 
-            result, Trspi_Error_String(result));
-        //return result;
-    }
-    
+free_context:  
     tpm_free_context(context, tpm_policy);
-    return 0;
+out:
+    return result;
 }
 
 
@@ -227,24 +233,24 @@ int get_aik_pem(char *aik_blob_path)
     BYTE *exponent;
     int  result;
 
-    result = take_ownership();
-    if (result) {
+    if ((result = take_ownership())!= 0) {
         syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
-        return result;
+        goto out;
     }
-
+    
     result = tpm_create_context(&context, &tpm_handle, &srk_handle, 
                 &tpm_policy, &srk_policy); 
-
     if(result != TSS_SUCCESS ) {
         syslog(LOG_ERR, "Error in aik context for generating aik_pem");
-        return result;
+        goto out;
     }
     // TODO : corrut or missing
     //
-    if ( (result = load_aik_tpm(aik_blob_path, context,  srk_handle, &aik_handle)) != 0) {
+    if ( (result = load_aik_tpm(aik_blob_path, context,  srk_handle, 
+            &aik_handle)) != 0) {
         syslog(LOG_ERR, "Unable to read aik blob %s\n", aik_blob_path);
-        return result;
+        result = XEN_INTERNAL_ERR;
+        goto free_context;
     }
 
     // Aik pub key read from the blob 
@@ -253,7 +259,7 @@ int get_aik_pem(char *aik_blob_path)
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_GetAttribData(AIK, RSA_MODULUS) failed with 0x%X %s", 
             result, Trspi_Error_String(result));
-        return result;
+        goto free_context;
     }
 
     result = Tspi_GetAttribData(aik_handle, TSS_TSPATTRIB_RSAKEY_INFO,
@@ -261,7 +267,7 @@ int get_aik_pem(char *aik_blob_path)
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_GetAttribData(AIK, RSA_EXPONENT) failed with 0x%X %s", 
             result, Trspi_Error_String(result));
-        return result;
+        goto free_context;
     }
 
     aikPubKey = RSA_new();
@@ -270,8 +276,10 @@ int get_aik_pem(char *aik_blob_path)
     PEM_write_RSA_PUBKEY(stdout, aikPubKey);
     RSA_free(aikPubKey);
 
+free_context:
     tpm_free_context(context,tpm_policy);
-    return 0;
+out:    
+    return result;
 }
 
 //
@@ -292,41 +300,42 @@ int get_aik_tcpa(char *aik_blob_path)
     BYTE *tcpa_keyblob;
     UINT32 tcpa_keyblob_len;
     int  result;
-    
-    result = take_ownership();
-    if (result) {
+
+    if ((result = take_ownership())!= 0) {
         syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
-        return result;
+        goto out;
     }
+
     result = tpm_create_context(&context, &tpm_handle, &srk_handle, 
             &tpm_policy, &srk_policy); 
 
     if(result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error in aik context for generating aik tcpa");
-        return result;
+        goto out;
     }
 
-    if ( (result = load_aik_tpm(aik_blob_path, context, 
-            srk_handle, &aik_handle)) != 0) {
-        syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
-        return result;
+    if ( (result = load_aik_tpm(aik_blob_path, context,  srk_handle, 
+                    &aik_handle)) != 0) {
+        syslog(LOG_ERR, "Unable to read aik blob %s\n", aik_blob_path);
+        result = XEN_INTERNAL_ERR;
+        goto free_context;
     }
-   
+
     result = Tspi_GetAttribData(aik_handle, TSS_TSPATTRIB_KEY_BLOB,
             TSS_TSPATTRIB_KEYBLOB_PUBLIC_KEY, &tcpa_keyblob_len, &tcpa_keyblob); 
     
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_GetAttribData(AIK, PUBLIC_KEY) failed with 0x%X %s", 
-            result, Trspi_Error_String(result));
-        return result;
+                result, Trspi_Error_String(result));
+        goto free_context;
     }
-
     if ((result = print_base64(tcpa_keyblob, tcpa_keyblob_len)) != 0) {
         syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
-        return 1;
     }
-    
-    tpm_free_context(context, tpm_policy);
-    return 0;
+
+free_context:
+    tpm_free_context(context,tpm_policy);
+out:    
+    return result;
 }
 
