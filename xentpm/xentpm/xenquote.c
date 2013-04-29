@@ -39,6 +39,7 @@ get_nonce_sha1(char* b64_nonce, BYTE * nonce_hash, TSS_HCONTEXT tpm_context)
     nonce_buf = base64_decode(b64_nonce, &nonce_len);
     
     if (!nonce_buf) {
+        syslog(LOG_ERR, "Unable to b64 decode nonce \n");
         return TSS_E_BAD_PARAMETER; //BAD_PARAM
     }
 
@@ -91,25 +92,25 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
     result = take_ownership();
     if (result) {
         syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
-        return result;
+        goto out;
     }
     
     if ((result = tpm_create_context(&tpm_context, &tpm_handle, &srk_handle, 
                 &tpm_policy, &srk_policy))!= TSS_SUCCESS) { 
         syslog(LOG_ERR, "Error in aik context for generating aik_pem");
-        return result;
+        goto out;
     }
 
     if ((result = get_nonce_sha1(b64_nonce, nonce_hash, 
                 tpm_context)) != TSS_SUCCESS) {
         syslog(LOG_ERR, "Unable to b64 decode nonce \n");
-        return result;
+        goto free_context;
     }  
 
     if ((result = load_aik_tpm(aik_blob_path, tpm_context, 
                 srk_handle, &aik_handle)) != 0) {
         syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
-        return result;
+        goto free_context;
     }
 
 
@@ -123,7 +124,7 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
                 &api_buf)) != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_TPM_GetCapability failed with 0x%X %s", result, 
             Trspi_Error_String(result));
-        return result;
+        goto free_context;
     }
 
     max_pcr = *(UINT32 *)api_buf;
@@ -134,7 +135,7 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
 	        	TSS_PCRS_STRUCT_INFO, &pcr_handle))!= TSS_SUCCESS) { 
         syslog(LOG_ERR, "Tspi_Context_CreateObject(PCR) failed with 0x%X %s", 
             result, Trspi_Error_String(result));
-        return result;
+        goto free_context;
     }
 
 	
@@ -152,7 +153,8 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
     if (!quote_buf) {
         syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,
             __LINE__);
-        return 1;
+        result = XEN_INTERNAL_ERR;
+        goto free_quote;
     }
     
     *(UINT16 *)quote_buf = htons(mask_size); // set num of PCRS
@@ -166,7 +168,7 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
         if (result != TSS_SUCCESS) {
             syslog(LOG_ERR, "Tspi_PcrComposite_SelectPcrIndex failed with 0x%X %s", 
                  result, Trspi_Error_String(result));
-            return result;
+            goto free_quote;
         }
         SET_BIT(pcr_mask, i);
     }
@@ -210,7 +212,7 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_TPM_Quote failed with 0x%X %s",
             result, Trspi_Error_String(result));
-        return result;
+        goto free_quote;
     }
 
 
@@ -226,11 +228,10 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
         if (result != TSS_SUCCESS) {
             syslog(LOG_ERR, "Tspi_PcrComposite_GetPcrValue failed with 0x%X %s", 
                     result, Trspi_Error_String(result));
-            return result;
+            goto free_quote;
         }
         memcpy (marker, api_buf, api_buf_len); // individual PCR quote
         marker += api_buf_len;
-        Tspi_Context_FreeMemory(tpm_context, api_buf);
     }
 
     
@@ -242,7 +243,8 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
 
     if (!quote_buf) {
         syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
-        return 1;
+        result = XEN_INTERNAL_ERR; 
+        goto free_context;
     }
 
     memcpy(&quote_buf[quote_buf_len], valid.rgbValidationData,
@@ -251,18 +253,18 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
 
     if ((result = print_base64(quote_buf,quote_buf_len)) != 0) {
         syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
-        return 1;
+        result = XEN_INTERNAL_ERR; 
+        goto free_quote;
+        
     }
 
     syslog(LOG_INFO, "Generate TPM Quote Success!\n");
-    
 
-    result = tpm_free_context(tpm_context, tpm_policy);
-
-    if (result != TSS_SUCCESS ) {
-        syslog(LOG_ERR, "Error in aik context for free %s and %d ",__FILE__,__LINE__);
-        return result;
-    }
-    return 0;
+free_quote:
+    free(quote_buf);
+free_context:
+    tpm_free_context(tpm_context, tpm_policy);
+out:    
+    return result;
 }
 
