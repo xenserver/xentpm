@@ -33,7 +33,7 @@ int get_endorsment_key()
     result = take_ownership();
     if (result) {
         syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
-        return result;
+        goto out;
     }
 
     result = tpm_create_context(&context, &tpm_handle, &srk_handle, 
@@ -41,28 +41,29 @@ int get_endorsment_key()
 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error in aik context for generating ek");
-        return result;
+        goto out;
     }
     result = Tspi_TPM_GetPubEndorsementKey (tpm_handle, TRUE, NULL, &pub_ek);
 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error Reading TPM EK 0x%x (%s) \n", result, Trspi_Error_String(result));
         syslog(LOG_ERR, "Error Reading TPM EK, check the owner password after enabling the TPM \n");
-        return result;
+        goto free_context;
     }
 
     result = Tspi_GetAttribData (pub_ek, TSS_TSPATTRIB_RSAKEY_INFO,
             TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, &modulusLen, &modulus);
 
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error TPM EK RSA %s \n", Trspi_Error_String(result));
-        return result;
+        syslog(LOG_ERR, "Error getting TPM EK RSA modulus attribute %s \n", Trspi_Error_String(result));
+        goto close_obj;
     }
 
     if (modulusLen != TSS_DAA_LENGTH_N) {
-        Tspi_Context_FreeMemory (context, modulus);
-        syslog(LOG_ERR, "Error TPM EK RSA %s \n", Trspi_Error_String(result));
-        return 1;
+        syslog(LOG_ERR, "Ek key modules len not equal TSS_DAA_LENGTH_N  %u \n",
+            modulusLen);
+        result = XEN_INTERNAL_ERR;
+        goto close_obj;
     }
 
     result = Tspi_GetAttribData(pub_ek, TSS_TSPATTRIB_RSAKEY_INFO,
@@ -70,27 +71,20 @@ int get_endorsment_key()
 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_Context_GetAttr Exponent\n", result);
-        Tspi_Context_FreeMemory(context, modulus);
-        return result;
+        goto close_obj;
     }
-
-    Tspi_Context_CloseObject (context, pub_ek);
     ek_rsa = RSA_new();
     ek_rsa->n = BN_bin2bn (modulus, modulusLen, NULL);
     ek_rsa->e = BN_bin2bn(exponent, exponentLen, NULL);
-
     PEM_write_RSA_PUBKEY(stdout, ek_rsa);
     RSA_free(ek_rsa);
-    
-    result = tpm_free_context(context,tpm_policy);
 
-    if (result != TSS_SUCCESS ) {
-        syslog(LOG_ERR, "Error in aik context for free %s and %d ",
-                __FILE__,__LINE__);
-        return result;
-    }
-    
-    return 0;
+close_obj:
+    Tspi_Context_CloseObject (context, pub_ek);
+free_context: 
+    tpm_free_context(context,tpm_policy);
+out:
+    return result;
 }
 
 /* Get Endoresement Key certificate  
