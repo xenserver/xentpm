@@ -8,7 +8,6 @@ import base64
 import subprocess
 import os.path
 from xml.dom.minidom import parseString
-
 path          = "/opt/xensource/tpm/"
 prg           = path + "xentpm"
 aikblob       = path + "aiktpmblob"
@@ -52,7 +51,7 @@ def call_get_aik_pem():
 def call_get_aik_tcpa():
     return doexec([prg, "--get_aik_tcpa", aikblob])
 
-def call_gen_aik():
+def call_gen_aik(session):
     xencert = ""
     try:
         host_ref = session.xenapi.session.get_this_host(session.handle)
@@ -84,7 +83,7 @@ def tpm_get_attestation_identity(session, args):
         tpmcert_node.firstChild.nodeValue = ''
     ekpub_node.firstChild.nodeValue = call_get_endorsementkey()
     if not os.path.isfile(aikblob) :
-        call_gen_aik()
+        call_gen_aik(session)
     aiktcp_node.firstChild.nodeValue = call_get_aik_tcpa()
     aikpub_node.firstChild.nodeValue = call_get_aik_pem()
     return dom.toxml()
