@@ -17,7 +17,7 @@ get_xen_rsa_modulus(char* b64_xen_cert, BYTE* CA_Key, unsigned int size)
     int key_len ;
     BYTE* key_buffer = NULL; ;
     int result = -1; 
-    
+    EVP_PKEY * pub_key = NULL;  
     if (!b64_xen_cert) {
         syslog(LOG_ERR , "Xen Server Certificate not present \n");
         goto out;
@@ -32,13 +32,27 @@ get_xen_rsa_modulus(char* b64_xen_cert, BYTE* CA_Key, unsigned int size)
 
     bufio = BIO_new_mem_buf((void*)key_buffer, key_len);
 
-    if (!bufio && 
+    if ((bufio == NULL) || 
         ((x509 = PEM_read_bio_X509(bufio, NULL, NULL, NULL)) == NULL)) {
-        syslog(LOG_ERR , "Unable to decode the Xen cert  %s\n",b64_xen_cert);
+        syslog(LOG_ERR , "Unable to read cert in PEM_read_bio_X509 %s\n",b64_xen_cert);
         goto free_key;
     }
 
-    rsa = X509_get_pubkey(x509)->pkey.rsa;
+    if ((pub_key = X509_get_pubkey(x509)) == NULL) {
+        syslog(LOG_ERR , "Unable to get pub_key from cert  %s\n",b64_xen_cert);
+        goto free_key;
+    }
+
+    rsa = NULL;
+    switch (pub_key->type) {
+        case EVP_PKEY_RSA:
+            rsa = pub_key->pkey.rsa;
+            break;
+        default:
+        syslog(LOG_ERR , "Xen Pub key not RSA %s\n",b64_xen_cert);
+        goto free_key;
+    }
+    
 
     if(!rsa){
         syslog(LOG_ERR , "Unable to read pub key from Xen Cert  \
