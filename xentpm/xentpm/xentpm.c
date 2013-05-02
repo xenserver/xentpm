@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
             case 'o' :
                 if (argc != 2) {
                     usage();
-                    status = 1;
+                    status = TSS_E_BAD_PARAMETER;
                     goto clean;
                 }
                 status = tpm_owned();
@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
             case 't' : 
                 if (argc != 2) {
                     usage();
-                    status = 1;
+                    status = TSS_E_BAD_PARAMETER;
                     goto clean;
                 }
                 status = take_ownership();
@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
             case 'e' : 
                 if (argc != 2) {
                     usage();
-                    status = 1;
+                    status = TSS_E_BAD_PARAMETER;
                     goto clean;
                 }
                 status = get_endorsment_key();
@@ -71,28 +71,23 @@ int main(int argc, char *argv[])
             case 'k' : 
                 if (argc != 2) {
                     usage();
-                    status = 1;
+                    status = TSS_E_BAD_PARAMETER;
                     goto clean;
                 }
                 status = get_endorsment_keycert();
                 break;
             case 'a' : 
-                if (argc < 3 || argc > 4) {
+                if (argc != 4) {
                     usage();
-                    status = 1;
+                    status = TSS_E_BAD_PARAMETER;
                     goto clean;
                 }
-                if (argc == 4)
                     status = generate_aik(optarg,argv[optind]);
-                else
-                    // use a fixed key
-                    status = generate_aik(optarg, NULL);
                 break;
 
             case 'p' : 
                 if (argc != 3) {
                     usage();
-                    status = 1;
                     goto clean;
                 }
                 status = get_aik_pem(optarg);
@@ -101,7 +96,7 @@ int main(int argc, char *argv[])
             case 'b' : 
                 if (argc != 3) {
                     usage();
-                    status = 1;
+                    status = TSS_E_BAD_PARAMETER;
                     goto clean;
                 }
                 status = get_aik_tcpa(optarg);
@@ -110,33 +105,31 @@ int main(int argc, char *argv[])
             case 'c' : 
                 if (optind >= argc ) {
                     usage();
-                    status = 1;
+                    status = TSS_E_BAD_PARAMETER;
                     goto clean;
                 }   
                 //external API call
                 if (!argv[optind]) {
-                    // TODO return error for invalid args 
-                    status = 1;
-                   goto clean;
+                    status = TSS_E_BAD_PARAMETER;
+                    goto clean;
                 }
                 status = tpm_challenge(optarg,argv[optind]);
                 break;
             case 'q' :  
                 if (optind >= argc ) {
-                    status = 1;
+                    status = TSS_E_BAD_PARAMETER;
                     usage();
                     goto clean;
                 }   
                 if (!argv[optind]) {
-                    // TODO return error code
-                    status = 1;
-                   goto clean;
+                    status = TSS_E_BAD_PARAMETER;
+                    goto clean;
                 }
                 status = tpm_quote(optarg,argv[optind]);
                 break;
             default: 
                 usage();
-                status = 1;
+                status = TSS_E_BAD_PARAMETER;
                 break;
         }//switch
     }//while
