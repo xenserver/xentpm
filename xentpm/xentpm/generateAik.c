@@ -71,15 +71,15 @@ get_xen_rsa_modulus(char* b64_xen_cert, BYTE* CA_Key, unsigned int size)
 
     modulus_len = BN_bn2bin(rsa->n, modulus_buffer);
     
-    //TODO log in case of mismatch of size
-    // Increase the Logs for all API start and end
     if (modulus_len < size) {
+        syslog(LOG_INFO , "Partial PCA Key, Xen Key size is %x,\n",modulus_len);
+        syslog(LOG_INFO , "Xen Cert %s\n",b64_xen_cert);
         memcpy(CA_Key, modulus_buffer, modulus_len);
         memset(CA_Key+ modulus_len, 0xff, size - modulus_len);
-        syslog(LOG_INFO , "Partial PCA Key, Xen Key size is %x,\n",modulus_len);
     }
     else if (modulus_len > size) {
         syslog(LOG_INFO , "Partial Xen Key for CA, Xen key size is %x,\n",modulus_len);
+        syslog(LOG_INFO , "Xen Cert %s\n",b64_xen_cert);
         memcpy(CA_Key, modulus_buffer, size);
     }
     else {
@@ -96,8 +96,6 @@ out:
 }
 
 
-// TODO context cleanup for all errors
-//
 int generate_aik(char *aik_blob_path, char* b64_xen_cert) 
 {
     TSS_HCONTEXT context;
@@ -121,13 +119,11 @@ int generate_aik(char *aik_blob_path, char* b64_xen_cert)
         goto out;
     }
    // TODO : fail if blob is present with a specific err code
-   //     error on     : blob already present 
     if ((result = access(aik_blob_path, R_OK)) == 0) {
         syslog(LOG_INFO, "Aikblob already present when taking ownership \
             %s \n", aik_blob_path);
     }
    
-   // TODO : partial cotext clearing
     result = tpm_create_context(&context, &tpm_handle, &srk_handle, 
                 &tpm_policy, &srk_policy); 
 
@@ -178,7 +174,6 @@ int generate_aik(char *aik_blob_path, char* b64_xen_cert)
 
 
     /* Generate new AIK  */
-    //TODO set label to citrix and set len
     result = Tspi_TPM_CollateIdentityRequest(tpm_handle, srk_handle, pca_handle, 
             strlen("citrix"), "citrix", aik_handle, TSS_ALG_AES, &tcpablob_len, 
             &tcpablob);
@@ -258,8 +253,7 @@ int get_aik_pem(char *aik_blob_path)
         syslog(LOG_ERR, "Error in aik context for generating aik_pem");
         goto out;
     }
-    // TODO : corrut or missing
-    //
+    
     if ( (result = load_aik_tpm(aik_blob_path, context,  srk_handle, 
             &aik_handle)) != 0) {
         syslog(LOG_ERR, "Unable to read aik blob %s\n", aik_blob_path);
@@ -267,7 +261,7 @@ int get_aik_pem(char *aik_blob_path)
         goto free_context;
     }
 
-    // Aik pub key read from the blob 
+    /* Aik pub key read from the blob */
     result = Tspi_GetAttribData(aik_handle, TSS_TSPATTRIB_RSAKEY_INFO,
                 TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, &aikblob_len, &aikblob); 
     if (result != TSS_SUCCESS) {
@@ -296,13 +290,13 @@ out:
     return result;
 }
 
-//
-// outputs the AIK TCPA base 64 key to stdout
-//
-// Return values:
-// 0x00000000 - success
-// 0x00000003 - Bad parameter - usually means AIK blob is not valid
-//
+/*
+* outputs the AIK TCPA base 64 key to stdout
+*
+* Return values:
+* 0x00000000 - success
+* 0x00000003 - Bad parameter - usually means AIK blob is not valid
+*/
 int get_aik_tcpa(char *aik_blob_path) 
 {
     TSS_HCONTEXT context;
