@@ -3,14 +3,12 @@
 #include <string.h>
 #include <ctype.h>
 
-/* Internal function
- *
- * */
+/* Internal function */
+
 static int get_key_bytes(unsigned char * md, unsigned char * buf);
 static char get_val(char c);
 
-/* Base64 conversion
- * */
+/* Base64 conversion */
 
 int print_base64(void* data, UINT32 len)
 {
@@ -43,12 +41,12 @@ int read_tpm_key(unsigned char *key, int keyLen)
     unsigned char key_buf[2*SHA_DIGEST_LENGTH + 1]; // sha1 in hex
     int result = 0;;
 
-    if ((result = get_config_key(CONFIG_TPM_PASSWORD_KEY, key_buf, 
+    if ((result = get_config_key(CONFIG_TPM_PASSWORD_KEY, (char*)key_buf, 
         sizeof(key_buf))) != 0) {
         goto out;
     }
     
-    if ((result = get_key_bytes(key,key_buf)) != 0)  {
+    if ((result = get_key_bytes(key,key_buf)) != 0) {
         syslog(LOG_ERR, "Error converting key bytes %s\n",key);
         result = XEN_CONFIG_KEY_ERR;
     }
@@ -56,8 +54,8 @@ out:
     return result;
 }
 
-//convert sha1 hex string to sha1 bytes
-
+/* convert sha1 hex string to sha1 bytes
+*/
 static int get_key_bytes(unsigned char * md, unsigned char * buf)
 {
     int i;
@@ -74,8 +72,7 @@ static int get_key_bytes(unsigned char * md, unsigned char * buf)
     return 0;
 }
 
-/* Hex to Decimal
- * */
+/* Hex to Decimal */
 static char get_val(char c) 
 {
     if (isdigit(c))
@@ -140,8 +137,7 @@ out:
 
 }
 
- /* base64 decode 'in' string
- */
+/* base64 decode 'in' string */
 
 BYTE* base64_decode(char *in, int * outlen)
 {
@@ -153,7 +149,7 @@ BYTE* base64_decode(char *in, int * outlen)
     
     if (!out) {
         syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",
-            __FILE__,__LINE__);
+            __FILE__, __LINE__);
         return NULL;
     }
     
@@ -184,9 +180,28 @@ sha1(TSS_HCONTEXT context, void *shabuf, UINT32 shabuf_len, BYTE *digest)
     Tspi_Context_CloseObject(context, hash);
 }
 
-/*Read a key from config file
- * TODO: white space removal
- * */
+/* Trim white space in-place */
+static char* trim_white_space(char *str)
+{
+    char *end;
+
+    /*Trim leading space*/
+    while(isspace(*str)) str++;
+
+    if(*str == 0)
+        return str;
+
+    /* Trim trailing space */
+    end = str + strlen(str) - 1;
+    while(end > str && isspace(*end)) end--;
+
+    /* Write new null terminator*/
+    *(end+1) = 0;
+
+    return str;
+}
+
+/* Read a key from config file  */
 int get_config_key(const char* key, char* val, int max_val_len)
 {
     char *k;
@@ -198,20 +213,24 @@ int get_config_key(const char* key, char* val, int max_val_len)
 
     if(!fp) {
         syslog(LOG_ERR, "Unable to open %s for reading err: %s \n",
-            CONFIG_FILE, strerror(errno));
+                CONFIG_FILE, strerror(errno));
         return XEN_CONFIG_FILE_ERR;
     }
 
     while (fgets(buffer, sizeof buffer, fp) != NULL) {
-        if(buffer[0]=='#' || buffer[0] =='\n' ||  buffer[0] =='\r' )
+        if (buffer[0]=='#' || buffer[0] =='\n' ||  buffer[0] =='\r')
             continue;
         k = strtok(buffer, "=\r\n");
-        if ( k && ((ret = strcmp(k, key))== 0) ) {
+        if (!k)
+            return XEN_CONFIG_FILE_ERR;
+        trim_white_space(k);
+        if(((ret = strcasecmp(k, key))== 0) ) {
             v = strtok(NULL, "\r\n");
             if (v) {
+                trim_white_space(v);
                 if (strlen(v) >  max_val_len) {
                     syslog(LOG_ERR, "Key %s value %s bigger then expected value \
-                        size \n", key,v );
+                            size \n", key,v );
                     goto err;
                 }
                 strcpy(val, v);
@@ -285,7 +304,8 @@ int  tpm_init_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle,
         goto error_obj;
     }   
 
-    goto out; // Caller will free all
+    /* Caller will free all */
+    goto out;
 
 error_obj:
     Tspi_Context_CloseObject(*context, *tpm_policy);
@@ -326,7 +346,6 @@ int tpm_create_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle, TSS_HKEY *sr
         goto error_free;
     }
 
-
     result = Tspi_GetPolicyObject((*srk_handle), TSS_POLICY_USAGE, srk_policy); 
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_GetPolicyObject(SRK, TSS_POLICY_USAGE) \
@@ -341,7 +360,8 @@ int tpm_create_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle, TSS_HKEY *sr
         syslog(LOG_ERR, "Tspi_Policy_SetSecret(SRK) failed with 0x%X %s", 
             result, Trspi_Error_String(result));
     }
-    goto out; // Caller will free the context
+    /* Caller will free all */
+    goto out; 
 error_free:
     tpm_free_context(*context, *tpm_policy);
 out:
