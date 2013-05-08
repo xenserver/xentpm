@@ -37,7 +37,6 @@ get_nonce_sha1(char* b64_nonce, BYTE * nonce_hash, TSS_HCONTEXT tpm_context)
     BYTE* nonce_buf = NULL;
     
     nonce_buf = base64_decode(b64_nonce, &nonce_len);
-    
     if (!nonce_buf) {
         syslog(LOG_ERR, "Unable to b64 decode nonce \n");
         return TSS_E_BAD_PARAMETER; //BAD_PARAM
@@ -96,7 +95,7 @@ tpm_quote(char * b64_nonce)
     }
     
     if ((result = tpm_create_context(&tpm_context, &tpm_handle, &srk_handle, 
-                &tpm_policy, &srk_policy))!= TSS_SUCCESS) { 
+                &tpm_policy, &srk_policy)) != TSS_SUCCESS) { 
         syslog(LOG_ERR, "Error in aik context for generating aik_pem");
         goto out;
     }
@@ -132,7 +131,7 @@ tpm_quote(char * b64_nonce)
     mask_size = ROUNDUP_BYTE(max_pcr); // no of bytes for PCR MASK
     
     if ((result = Tspi_Context_CreateObject(tpm_context, TSS_OBJECT_TYPE_PCRS,
-	        	TSS_PCRS_STRUCT_INFO, &pcr_handle))!= TSS_SUCCESS) { 
+	        	TSS_PCRS_STRUCT_INFO, &pcr_handle)) != TSS_SUCCESS) { 
         syslog(LOG_ERR, "Tspi_Context_CreateObject(PCR) failed with 0x%X %s", 
             result, Trspi_Error_String(result));
         goto free_context;
@@ -153,7 +152,7 @@ tpm_quote(char * b64_nonce)
     if (!quote_buf) {
         syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,
             __LINE__);
-        result = XEN_INTERNAL_ERR;
+        result = XENTPM_E_INTERNAL;
         goto free_quote;
     }
     
@@ -162,7 +161,7 @@ tpm_quote(char * b64_nonce)
     pcr_mask = quote_buf + sizeof(UINT16); // mask init
     memset(pcr_mask, 0, mask_size); 
 
-    for (i=0; i < max_pcr; i++) {
+    for (i = 0;i < max_pcr; i++) {
         result = Tspi_PcrComposite_SelectPcrIndex(pcr_handle, i); 
         
         if (result != TSS_SUCCESS) {
@@ -221,8 +220,7 @@ tpm_quote(char * b64_nonce)
     marker = quote_buf + sizeof(UINT16) + mask_size; // no of PCRs
     *(UINT32 *)marker = htonl (PCR_QUOTE_LEN*max_pcr); //set the quote size
     marker += sizeof(UINT32);
-    for ( i = 0; i < max_pcr; i++) {
-
+    for (i = 0;i < max_pcr; i++) {
         result = Tspi_PcrComposite_GetPcrValue(pcr_handle, i, &api_buf_len,
                 &api_buf);
         if (result != TSS_SUCCESS) {
@@ -243,7 +241,7 @@ tpm_quote(char * b64_nonce)
 
     if (!quote_buf) {
         syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
-        result = XEN_INTERNAL_ERR; 
+        result = XENTPM_E_INTERNAL; 
         goto free_context;
     }
 
@@ -253,7 +251,7 @@ tpm_quote(char * b64_nonce)
 
     if ((result = print_base64(quote_buf,quote_buf_len)) != 0) {
         syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
-        result = XEN_INTERNAL_ERR; 
+        result = XENTPM_E_INTERNAL; 
         goto free_quote;
         
     }

@@ -27,15 +27,14 @@
 #define CHAR_BIT 8
 #endif
 /* Error Codes  */
-//TODO : change names to XENTPM_E_*
-#define XEN_SUCCESS              0
-#define XEN_INTERNAL_ERR        -3
-#define XEN_CERT_ERR            -4
-#define XEN_CERT_PARSE_ERR      -5
-#define XEN_CONFIG_KEY_ERR      -6
-#define XEN_CONFIG_FILE_ERR     -7
-#define XEN_MISSING_AIK_ERR     -8
-#define XEN_CORRUPT_AIK_ERR     -9
+#define XENTPM_SUCCESS               0
+#define XENTPM_E_INTERNAL           -3
+#define XENTPM_E_CERT               -4
+#define XENTPM_E_CERT_PARSE         -5
+#define XENTPM_E_CONFIG_KEY         -6
+#define XENTPM_E_CONFIG_FILE        -7
+#define XENTPM_E_MISSING_AIK        -8
+#define XENTPM_E_CORRUPT_AIK        -9
 
 
 /*  XenTPM internal function

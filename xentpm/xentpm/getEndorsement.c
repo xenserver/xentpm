@@ -59,7 +59,7 @@ int get_endorsment_key()
     if (modulusLen != TSS_DAA_LENGTH_N) {
         syslog(LOG_ERR, "Ek key modules len not equal TSS_DAA_LENGTH_N  %u \n",
             modulusLen);
-        result = XEN_INTERNAL_ERR;
+        result = XENTPM_E_INTERNAL;
         goto close_obj;
     }
 
@@ -165,21 +165,21 @@ int get_endorsment_keycert()
     
     if (blob_len < CERT_START_OFFSET) {
         syslog(LOG_ERR, "Failure, cert blob len smaller then cert offset\n");
-        result = XEN_CERT_PARSE_ERR; 
+        result = XENTPM_E_CERT_PARSE; 
         goto free_context;
     }
     
     tag =  GET_SHORT_UINT16(blob,0);  /* certificate tag in first two byte */
     if (tag != TCG_TAG_PCCLIENT_STORED_CERT) {
         syslog(LOG_ERR, "Failure, cert tag not TCG_TAG_PCCLIENT_STORED_CERT\n");
-        result = XEN_CERT_PARSE_ERR; 
+        result = XENTPM_E_CERT_PARSE;
         goto free_context;
     }
 
     cert_type = blob[2]; /* certtype at byte 2 --see header */
     if (cert_type != TCG_FULL_CERT) {
         syslog(LOG_ERR, "Failure, cert type not TCG_FULL_CERT\n");
-        result = XEN_CERT_PARSE_ERR; 
+        result = XENTPM_E_CERT_PARSE; 
         goto free_context;
     }
     
@@ -190,7 +190,7 @@ int get_endorsment_keycert()
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_NV_ReadValue failed with 0x%X %s", 
                 result, Trspi_Error_String(result));
-        result = XEN_CERT_PARSE_ERR; 
+        result = XENTPM_E_CERT_PARSE; 
         goto free_context;
     }
     /* following is the certificate structure
@@ -201,7 +201,7 @@ int get_endorsment_keycert()
     */
     if (blob_len < sizeof(UINT16)) {
         syslog(LOG_ERR, "Failure, unable read certificate");
-        result = XEN_CERT_PARSE_ERR; 
+        result = XENTPM_E_CERT_PARSE; 
         goto free_context;
     }
     
@@ -210,7 +210,7 @@ int get_endorsment_keycert()
         offset += sizeof(UINT16);
         certbuf_len -= sizeof(UINT16);
     } else 	{ /* Marker of cert structure */
-            result = XEN_CERT_PARSE_ERR; 
+            result = XENTPM_E_CERT_PARSE; 
             syslog(LOG_ERR, "TPM does not contain FULL CERT ");
             goto free_context;
     }
@@ -219,7 +219,7 @@ int get_endorsment_keycert()
     certbuf = malloc(certbuf_len);
     if (!certbuf) {
         syslog(LOG_ERR, "Malloc failed in %s and %d ",__FILE__,__LINE__);
-        result = XEN_INTERNAL_ERR;
+        result = XENTPM_E_INTERNAL;
     }
 
     ek_offset = 0;

@@ -26,14 +26,14 @@ int print_base64(void* data, UINT32 len)
     if (!b64Buff) {
         syslog(LOG_ERR, "Error in memory allocation %s and %d ",__FILE__,
             __LINE__);
-        return XEN_INTERNAL_ERR;
+        return XENTPM_E_INTERNAL;
     } 
     memcpy(b64Buff, bptr->data, bptr->length-1);
     b64Buff[bptr->length-1] = 0;
     BIO_free_all(b64);
     printf(b64Buff);
     free(b64Buff);
-    return XEN_SUCCESS;
+    return XENTPM_SUCCESS;
 }
 
 int read_tpm_key(unsigned char *key, int keyLen)
@@ -48,7 +48,7 @@ int read_tpm_key(unsigned char *key, int keyLen)
     
     if ((result = get_key_bytes(key,key_buf)) != 0) {
         syslog(LOG_ERR, "Error converting key bytes %s\n",key);
-        result = XEN_CONFIG_KEY_ERR;
+        result = XENTPM_E_CONFIG_KEY;
     }
 out:
     return result;
@@ -61,7 +61,7 @@ static int get_key_bytes(unsigned char * md, unsigned char * buf)
     int i;
     char t1;
     char t2;
-    for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
+    for (i = 0;i < SHA_DIGEST_LENGTH; i++) {
         t1 = get_val(buf[i*2]);    
         t2 = get_val(buf[i*2+1]);
         if( t1 < 0 || t2 < 0) {
@@ -113,7 +113,7 @@ int register_aik_uuid(TSS_HCONTEXT context, TSS_HKEY aik_handle)
 
     TSS_UUID aik_uuid = CITRIX_UUID_AIK ;
     TSS_UUID SRK_UUID = TSS_UUID_SRK;
-    int	    result;
+    int	result;
 
 
     result = Tspi_Context_RegisterKey(context, aik_handle, TSS_PS_TYPE_SYSTEM,
@@ -136,7 +136,7 @@ int register_aik_uuid(TSS_HCONTEXT context, TSS_HKEY aik_handle)
 int load_aik_tpm( TSS_HCONTEXT context,
         TSS_HKEY srk_handle, TSS_HKEY* aik_handle)
 {
-    int	    result;
+    int	result;
     TSS_UUID aik_uuid = CITRIX_UUID_AIK ;
 
     result = Tspi_Context_LoadKeyByUUID(context, TSS_PS_TYPE_SYSTEM,
@@ -144,7 +144,7 @@ int load_aik_tpm( TSS_HCONTEXT context,
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Context_LoadKeyByUUID(AIK) failed with 0x%X %s", 
                 result, Trspi_Error_String(result));
-        result = XEN_CORRUPT_AIK_ERR; // unable to load aik 
+        result = XENTPM_E_CORRUPT_AIK; // unable to load aik 
     }
     return result;
 }
@@ -226,17 +226,17 @@ int get_config_key(const char* key, char* val, int max_val_len)
     if(!fp) {
         syslog(LOG_ERR, "Unable to open %s for reading err: %s \n",
                 CONFIG_FILE, strerror(errno));
-        return XEN_CONFIG_FILE_ERR;
+        return XENTPM_E_CONFIG_FILE;
     }
 
     while (fgets(buffer, sizeof buffer, fp) != NULL) {
-        if (buffer[0]=='#' || buffer[0] =='\n' ||  buffer[0] =='\r')
+        if (buffer[0] == '#' || buffer[0] == '\n' ||  buffer[0] == '\r')
             continue;
         k = strtok(buffer, "=\r\n");
         if (!k)
-            return XEN_CONFIG_FILE_ERR;
+            return XENTPM_E_CONFIG_FILE;
         trim_white_space(k);
-        if(((ret = strcasecmp(k, key))== 0) ) {
+        if(((ret = strcasecmp(k, key)) == 0) ) {
             v = strtok(NULL, "\r\n");
             if (v) {
                 trim_white_space(v);
@@ -247,14 +247,14 @@ int get_config_key(const char* key, char* val, int max_val_len)
                 }
                 strcpy(val, v);
                 fclose(fp);
-                return XEN_SUCCESS;
+                return XENTPM_SUCCESS;
             }
         }
     }
 err:
     syslog(LOG_ERR, "Unable to read key  %s \n", key);
     fclose(fp);
-    return XEN_CONFIG_KEY_ERR;
+    return XENTPM_E_CONFIG_KEY;
 }
 
 /* Init context
@@ -342,7 +342,7 @@ int tpm_create_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle, TSS_HKEY *sr
         goto out;
     }
 
-    result =  tpm_init_context(context, tpm_handle, tpm_policy);
+    result = tpm_init_context(context, tpm_handle, tpm_policy);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Context_Create failed with 0x%X %s", 
             result, Trspi_Error_String(result));

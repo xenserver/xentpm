@@ -17,7 +17,7 @@ get_xen_rsa_modulus(char* b64_xen_cert, BYTE* CA_Key, unsigned int size)
     BYTE* modulus_buffer;
     int key_len ;
     BYTE* key_buffer = NULL; ;
-    int result = XEN_INTERNAL_ERR; 
+    int result = XENTPM_E_INTERNAL; 
     EVP_PKEY * pub_key = NULL;  
 
     if (!b64_xen_cert) {
@@ -87,7 +87,7 @@ get_xen_rsa_modulus(char* b64_xen_cert, BYTE* CA_Key, unsigned int size)
         memcpy(CA_Key, modulus_buffer, size);
     }    
 
-    result = 0;
+    result = XENTPM_SUCCESS;
     free(modulus_buffer);
 
 free_x509:
@@ -114,8 +114,7 @@ int generate_aik(char* b64_xen_cert)
     BYTE*  attrblob;
     UINT32 attrblob_len;
     TSS_UUID aik_uuid = CITRIX_UUID_AIK; 
-
-    int  result = 0 ;
+    int result;
 
     syslog(LOG_ERR, "xentpm --generate_aik enter");
     
@@ -159,7 +158,7 @@ int generate_aik(char* b64_xen_cert)
 
     if ((result = get_xen_rsa_modulus(b64_xen_cert, CA_Key, 
             sizeof(CA_Key))) != 0) {
-        result = XEN_CERT_ERR;  
+        result = XENTPM_E_CERT;  
         goto free_context;
     }
     
@@ -238,7 +237,7 @@ int get_aik_pem()
     BYTE *exponent;
     int  result;
 
-    if ((result = take_ownership())!= 0) {
+    if ((result = take_ownership()) != 0) {
         syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
         goto out;
     }
@@ -253,7 +252,7 @@ int get_aik_pem()
     if ( (result = load_aik_tpm(context,  srk_handle, 
             &aik_handle)) != 0) {
         syslog(LOG_ERR,  "get_aik_pem Unable to Load aik");
-        result = XEN_INTERNAL_ERR;
+        result = XENTPM_E_INTERNAL;
         goto free_context;
     }
 
@@ -305,7 +304,7 @@ int get_aik_tcpa()
     UINT32 tcpa_keyblob_len;
     int  result;
 
-    if ((result = take_ownership())!= 0) {
+    if ((result = take_ownership()) != 0) {
         syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
         goto out;
     }
@@ -321,7 +320,7 @@ int get_aik_tcpa()
     if ( (result = load_aik_tpm( context, srk_handle, 
                     &aik_handle)) != 0) {
         syslog(LOG_ERR,  "get_aik_tcpa Unable to Load aik");
-        result = XEN_INTERNAL_ERR;
+        result = XENTPM_E_INTERNAL;
         goto free_context;
     }
 
