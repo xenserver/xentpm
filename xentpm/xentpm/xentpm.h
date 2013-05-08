@@ -17,15 +17,15 @@
 
 #define CONFIG_FILE "/opt/xensource/tpm/config"
 #define CITRIX_LABEL_STR "citrix"
-
-#define CHAR_BIT 8
 #define GET_SHORT_UINT16(buf,offset) \
     (((buf)[(offset)] << CHAR_BIT) | (buf)[(offset) + 1])
 
 
 #define MAX_CONFIG_KEY_LEN 1024
 #define CONFIG_TPM_PASSWORD_KEY "password"
-
+#ifndef CHAR_BIT 
+#define CHAR_BIT 8
+#endif
 /* Error Codes  */
 //TODO : change names to XENTPM_E_*
 #define XEN_SUCCESS              0
@@ -41,32 +41,44 @@
 /*  XenTPM internal function
  */
 
-int get_aik_pem(char *aik_blob_path);
-int get_aik_tcpa(char *aik_blob_path); 
+#define CITRIX_UUID_AIK  {'c','i','t','r','i','x', 'u', 'u', 'i', 'd', 0}
+
+/* XenTPM Client calls via Python */
+
+int generate_aik( char* b64_xen_cert); 
+int tpm_quote(char *nonce);
+int tpm_challenge(char *challenge);
+
+/* From Python plugin Internal*/
+int get_aik_pem();
+int get_aik_tcpa(); 
 int tpm_owned();
 int take_ownership();
 int get_endorsment_key();
 int get_endorsment_keycert();
+
+/* Utils */
 int print_base64(void* data, uint32_t len);
 int read_tpm_key(unsigned char *key, int key_len);
+BYTE* base64_decode(char *in, int * out_len);
+void sha1(TSS_HCONTEXT context, void *shabuf, UINT32 shabuf_len, BYTE *digest);
+int get_config_key(const char* key, char* val, int max_val_len);
+
+/* Context Init and free */
 int tpm_free_context(TSS_HCONTEXT context,
         TSS_HPOLICY tpm_handlePolicy);
 int tpm_create_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle, 
         TSS_HKEY *srk_handle, TSS_HPOLICY *tpm_policy, TSS_HPOLICY *srk_policy); 
 int  tpm_init_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle,
             TSS_HPOLICY *tpm_policy); 
-int load_aik_tpm(char * aik_blob_path, TSS_HCONTEXT context,
+
+
+/* Aik load/register/unregister in Trousers
+ * */
+int load_aik_tpm(TSS_HCONTEXT context,
         TSS_HKEY srk_handle, TSS_HKEY* aik_handle);
-BYTE* base64_decode(char *in, int * out_len);
-void sha1(TSS_HCONTEXT context, void *shabuf, UINT32 shabuf_len, BYTE *digest);
-int get_config_key(const char* key, char* val, int max_val_len);
+int unregister_aik_uuid(TSS_HCONTEXT context);
+int register_aik_uuid(TSS_HCONTEXT context, TSS_HKEY aik_handle);
 
-
-
-/* XenTPM Client calls  */
-
-int generate_aik(char *aik_blob_path, char* b64_xeni_key_pem); 
-int tpm_quote(char *nonce, char *aik_blob_file);
-int tpm_challenge(char *aik_blob_file, char *challenge);
 
 #endif

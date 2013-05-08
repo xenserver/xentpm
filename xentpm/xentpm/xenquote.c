@@ -64,7 +64,7 @@ get_nonce_sha1(char* b64_nonce, BYTE * nonce_hash, TSS_HCONTEXT tpm_context)
 */
 
 int
-tpm_quote(char * b64_nonce, char *aik_blob_path)
+tpm_quote(char * b64_nonce)
 {
     TSS_HCONTEXT tpm_context;
     TSS_HTPM tpm_handle;
@@ -107,9 +107,9 @@ tpm_quote(char * b64_nonce, char *aik_blob_path)
         goto free_context;
     }  
 
-    if ((result = load_aik_tpm(aik_blob_path, tpm_context, 
+    if ((result = load_aik_tpm(tpm_context, 
                 srk_handle, &aik_handle)) != 0) {
-        syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
+        syslog(LOG_ERR, "xenquote Unable to load citrix aik");
         goto free_context;
     }
 

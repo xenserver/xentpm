@@ -10,7 +10,6 @@ import os.path
 from xml.dom.minidom import parseString
 path          = "/opt/xensource/tpm/"
 prg           = path + "xentpm"
-aikblob       = path + "aiktpmblob"
 
 xml_schema     = '<?xml version="1.0" encoding="UTF-8"?> \
 <xentxt:xentxtdata xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xentxt="http://www.XenTxt.org/XenTxtGetAIK" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.XenTxt.org/XenTxtGetAIK xentxt.xsd "> \
@@ -46,10 +45,10 @@ def call_get_tpmcert():
     return doexec([prg, "--get_ekcert"])
 
 def call_get_aik_pem():
-    return  doexec([prg, "--get_aik_pem", aikblob])
+    return  doexec([prg, "--get_aik_pem"])
 
 def call_get_aik_tcpa():
-    return doexec([prg, "--get_aik_tcpa", aikblob])
+    return doexec([prg, "--get_aik_tcpa"])
 
 def call_gen_aik(session):
     xencert = ""
@@ -59,13 +58,13 @@ def call_gen_aik(session):
     except:
         #TODO :raise error ?
         xencert = ""
-    return doexec([prg, "--gen_aik", aikblob, base64.b64encode(xencert)])
+    return doexec([prg, "--gen_aik", base64.b64encode(xencert)])
 
 def call_tpm_challenge(challenge):
-    return doexec([prg, "--tpm_challenge", aikblob, challenge])
+    return doexec([prg, "--tpm_challenge", challenge])
 
 def call_tpm_quote(nonce):
-    return doexec([prg, "--tpm_quote", nonce, aikblob])
+    return doexec([prg, "--tpm_quote", nonce])
 
 ##Create an XML with
 ## certifciate, public keys
@@ -82,8 +81,7 @@ def tpm_get_attestation_identity(session, args):
     except:
         tpmcert_node.firstChild.nodeValue = ''
     ekpub_node.firstChild.nodeValue = call_get_endorsementkey()
-    if not os.path.isfile(aikblob) :
-        call_gen_aik(session)
+    call_gen_aik(session)
     aiktcp_node.firstChild.nodeValue = call_get_aik_tcpa()
     aikpub_node.firstChild.nodeValue = call_get_aik_pem()
     return dom.toxml()

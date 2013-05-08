@@ -85,56 +85,68 @@ static char get_val(char c)
 }
 
 
-int load_aik_tpm(char * aik_blob_path, TSS_HCONTEXT context,
+int unregister_aik_uuid(TSS_HCONTEXT context)
+{
+    TSS_HKEY aik_handle; 
+    int	    result;
+    TSS_UUID aik_uuid = CITRIX_UUID_AIK ;
+
+    result = Tspi_Context_GetKeyByUUID(context, TSS_PS_TYPE_SYSTEM,
+            aik_uuid, &aik_handle);
+    if (result == TSS_E_PS_KEY_NOTFOUND) {
+        syslog(LOG_INFO, "unregister_aik_uuid not found --not an error");
+        return TSS_SUCCESS;
+    }        
+    else if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "unregister_aik_uuid GetKetUUID failed with 0x%X %s", 
+                result, Trspi_Error_String(result));
+        return result;
+    }
+    
+    result = Tspi_Context_UnregisterKey(context, TSS_PS_TYPE_SYSTEM,
+            aik_uuid, &aik_handle);
+    return result;
+}
+
+int register_aik_uuid(TSS_HCONTEXT context, TSS_HKEY aik_handle) 
+{
+
+    TSS_UUID aik_uuid = CITRIX_UUID_AIK ;
+    TSS_UUID SRK_UUID = TSS_UUID_SRK;
+    int	    result;
+
+
+    result = Tspi_Context_RegisterKey(context, aik_handle, TSS_PS_TYPE_SYSTEM,
+            aik_uuid, TSS_PS_TYPE_SYSTEM, SRK_UUID);
+
+    if (result == TSS_E_KEY_ALREADY_REGISTERED) {
+        syslog(LOG_ERR, "Tspi_Context_RegisterKey(UUID) failed with 0x%X %s", 
+                result, Trspi_Error_String(result));
+        return result;
+    }        
+    else if (result != TSS_SUCCESS) {       
+        Tspi_Context_UnregisterKey(context, TSS_PS_TYPE_SYSTEM,
+                aik_uuid, &aik_handle);
+        syslog(LOG_ERR, "Tspi_Context_RegisterKey(UDD) failed with 0x%X %s", 
+                result, Trspi_Error_String(result));
+    } 
+    return result;
+}
+
+int load_aik_tpm( TSS_HCONTEXT context,
         TSS_HKEY srk_handle, TSS_HKEY* aik_handle)
 {
-    FILE    *f_in;
-    BYTE    *aik_blob;
-    UINT32  aik_blob_len;
     int	    result;
-    
-    if ((f_in = fopen(aik_blob_path, "rb")) == NULL) {
-        syslog(LOG_ERR, "Unable to open file %s err: %s\n",
-            aik_blob_path, strerror(errno));
-        result = XEN_MISSING_AIK_ERR; // aik missing from disk 
-        goto out;
-    }
-    
-    fseek(f_in, 0, SEEK_END);
-    aik_blob_len = ftell(f_in);
-    fseek(f_in, 0, SEEK_SET);
-    aik_blob = malloc(aik_blob_len);
-    
-    if (!aik_blob) {
-        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",
-            __FILE__,__LINE__);
-        result = XEN_INTERNAL_ERR;
-        goto close;
-    }
+    TSS_UUID aik_uuid = CITRIX_UUID_AIK ;
 
-    if (fread(aik_blob, 1, aik_blob_len, f_in) != aik_blob_len) {
-        syslog(LOG_ERR, "Unable to readn file %s err: %s\n", 
-            aik_blob_path, strerror(errno));
-        result = XEN_CORRUPT_AIK_ERR; // unable to read ak from disk 
-        goto free_blob;
-    }
-    
-    result = Tspi_Context_LoadKeyByBlob(context, srk_handle, aik_blob_len, 
-        aik_blob, aik_handle); 
-    
+    result = Tspi_Context_LoadKeyByUUID(context, TSS_PS_TYPE_SYSTEM,
+            aik_uuid, aik_handle); 
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", 
-            result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Tspi_Context_LoadKeyByUUID(AIK) failed with 0x%X %s", 
+                result, Trspi_Error_String(result));
         result = XEN_CORRUPT_AIK_ERR; // unable to load aik 
     }
-
-free_blob:
-    free(aik_blob);
-close:
-    fclose(f_in);
-out:  
-   return result;
-
+    return result;
 }
 
 /* base64 decode 'in' string */

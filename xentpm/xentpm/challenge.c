@@ -14,7 +14,7 @@
  * input is the challange encoded in base_64
  */
 
-int tpm_challenge(char *aik_blob_path, char *b64_challenge)
+int tpm_challenge(char *b64_challenge)
 {
     TSS_HCONTEXT context;
     TSS_HTPM tpm_handle;
@@ -48,9 +48,9 @@ int tpm_challenge(char *aik_blob_path, char *b64_challenge)
         goto out;
     }
 
-    if ((result = load_aik_tpm(aik_blob_path, context, 
+    if ((result = load_aik_tpm(context, 
             srk_handle, &aik_handle)) != 0) {
-        syslog(LOG_ERR, "Unable to readn file %s\n", aik_blob_path);
+        syslog(LOG_ERR, "challange Unable to load citrix aik");
         goto free_context;
     }
     /* Parse the decoded challange from client

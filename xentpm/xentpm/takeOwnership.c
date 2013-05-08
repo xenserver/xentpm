@@ -60,7 +60,7 @@ int take_ownership()
         return TSS_SUCCESS;
     }
 
-    if ((result = read_tpm_key(tpm_key,SHA_DIGEST_LENGTH)) != 0) {
+    if ((result = read_tpm_key(tpm_key, SHA_DIGEST_LENGTH)) != 0) {
         syslog(LOG_ERR, "TPM Key Not Found \n");
         goto out;
     }
@@ -75,7 +75,8 @@ int take_ownership()
     }
 
     srk_attributes = TSS_KEY_TSP_SRK | TSS_KEY_AUTHORIZATION;
-    result = Tspi_Context_CreateObject(context, TSS_OBJECT_TYPE_RSAKEY, srk_attributes, &srk_handle);
+    result = Tspi_Context_CreateObject(context, TSS_OBJECT_TYPE_RSAKEY, 
+		srk_attributes, &srk_handle);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error 0x%x on Tspi_Context_CreateObject %s \n",
                 result,Trspi_Error_String(result));
@@ -93,7 +94,8 @@ int take_ownership()
     result = Tspi_Policy_SetSecret(srk_policy, TSS_SECRET_MODE_SHA1,
             (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error Setting SRK Password %s \n", Trspi_Error_String(result));
+        syslog(LOG_ERR, "Error Setting SRK Password %s \n", 
+		Trspi_Error_String(result));
         goto free_context;
     }
     /* Take ownership of the TPM
@@ -102,11 +104,14 @@ int take_ownership()
     result = Tspi_TPM_TakeOwnership(tpm_handle, srk_handle, 0);
 
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Error 0x%x on Tspi_TPM_TakeOwnership (%s)\n", result, Trspi_Error_String(result));
+        syslog(LOG_ERR, "Error 0x%x on Tspi_TPM_TakeOwnership (%s)\n", 
+		result, Trspi_Error_String(result));
         goto free_context;
     }
 
     syslog(LOG_INFO, "XenServer now owns the TPM.\n");
+    /*Unregister AIK if present*/
+    unregister_aik_uuid(context);
 
 free_context:  
     tpm_free_context(context, tpm_policy);
