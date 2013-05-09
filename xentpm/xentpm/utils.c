@@ -3,6 +3,8 @@
 #include <string.h>
 #include <ctype.h>
 
+#define AIK_STORAGE_TYPE TSS_PS_TYPE_SYSTEM
+
 /* Internal function */
 
 static int get_key_bytes(unsigned char * md, unsigned char * buf);
@@ -91,19 +93,19 @@ int unregister_aik_uuid(TSS_HCONTEXT context)
     int	    result;
     TSS_UUID aik_uuid = CITRIX_UUID_AIK ;
 
-    result = Tspi_Context_GetKeyByUUID(context, TSS_PS_TYPE_SYSTEM,
+    result = Tspi_Context_GetKeyByUUID(context, AIK_STORAGE_TYPE,
             aik_uuid, &aik_handle);
     if (result == TSS_E_PS_KEY_NOTFOUND) {
         syslog(LOG_INFO, "unregister_aik_uuid not found --not an error");
         return TSS_SUCCESS;
     }        
     else if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "unregister_aik_uuid GetKetUUID failed with 0x%X %s", 
+        syslog(LOG_ERR, "unregister_aik_uuid GetKeyUUID failed with 0x%X %s", 
                 result, Trspi_Error_String(result));
         return result;
     }
     
-    result = Tspi_Context_UnregisterKey(context, TSS_PS_TYPE_SYSTEM,
+    result = Tspi_Context_UnregisterKey(context, AIK_STORAGE_TYPE,
             aik_uuid, &aik_handle);
     return result;
 }
@@ -115,17 +117,16 @@ int register_aik_uuid(TSS_HCONTEXT context, TSS_HKEY aik_handle)
     TSS_UUID SRK_UUID = TSS_UUID_SRK;
     int	result;
 
-
-    result = Tspi_Context_RegisterKey(context, aik_handle, TSS_PS_TYPE_SYSTEM,
+    result = Tspi_Context_RegisterKey(context, aik_handle, AIK_STORAGE_TYPE,
             aik_uuid, TSS_PS_TYPE_SYSTEM, SRK_UUID);
 
     if (result == TSS_E_KEY_ALREADY_REGISTERED) {
-        syslog(LOG_ERR, "Tspi_Context_RegisterKey(UUID) failed with 0x%X %s", 
+        syslog(LOG_ERR, "Tspi_Context_RegisterKey(UUID) already registered 0x%X %s", 
                 result, Trspi_Error_String(result));
-        return result;
+        return TSS_SUCCESS;
     }        
     else if (result != TSS_SUCCESS) {       
-        Tspi_Context_UnregisterKey(context, TSS_PS_TYPE_SYSTEM,
+        Tspi_Context_UnregisterKey(context, AIK_STORAGE_TYPE,
                 aik_uuid, &aik_handle);
         syslog(LOG_ERR, "Tspi_Context_RegisterKey(UDD) failed with 0x%X %s", 
                 result, Trspi_Error_String(result));
@@ -138,11 +139,37 @@ int load_aik_tpm( TSS_HCONTEXT context,
 {
     int	result;
     TSS_UUID aik_uuid = CITRIX_UUID_AIK ;
+    BYTE   *aik_blob;
+    UINT32 aik_blob_len;
 
-    result = Tspi_Context_LoadKeyByUUID(context, TSS_PS_TYPE_SYSTEM,
-            aik_uuid, aik_handle); 
+   
+    result = Tspi_Context_GetKeyByUUID(context, TSS_PS_TYPE_USER,
+            aik_uuid, aik_handle);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_Context_LoadKeyByUUID(AIK) failed with 0x%X %s", 
+        syslog(LOG_INFO, "Load_aik_tpm ..key not found \n "); 
+        return result;
+    }
+    result = Tspi_Key_LoadKey((*aik_handle), srk_handle);
+
+    /*result = Tspi_GetAttribData( *(aik_handle), TSS_TSPATTRIB_KEY_BLOB,
+            TSS_TSPATTRIB_KEYBLOB_BLOB,
+            &aik_blob_len, &aik_blob);
+
+    if ( result != TSS_SUCCESS ) {
+        syslog(LOG_ERR, "Load_aik_tpm Tspi_GetAttribData failed with 0x%X %s", 
+                result, Trspi_Error_String(result));
+        return result;
+    }
+
+    result = Tspi_Context_LoadKeyByBlob(context, srk_handle, aik_blob_len,
+            aik_blob, aik_handle);
+  
+
+    result = Tspi_Context_LoadKeyByUUID(context, AIK_STORAGE_TYPE,
+            aik_uuid, aik_handle);
+   */
+  if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", 
                 result, Trspi_Error_String(result));
         result = XENTPM_E_CORRUPT_AIK; // unable to load aik 
     }

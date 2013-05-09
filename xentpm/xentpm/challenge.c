@@ -127,5 +127,4 @@ free_context:
     tpm_free_context(context, tpm_policy);
 out:
     return result;
-
 }

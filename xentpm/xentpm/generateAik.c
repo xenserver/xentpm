@@ -250,7 +250,7 @@ int get_aik_pem()
     }
     
     if ( (result = load_aik_tpm(context,  srk_handle, 
-            &aik_handle)) != 0) {
+            &aik_handle)) != TSS_SUCCESS) {
         syslog(LOG_ERR,  "get_aik_pem Unable to Load aik");
         result = XENTPM_E_INTERNAL;
         goto free_context;

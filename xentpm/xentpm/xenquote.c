@@ -107,7 +107,7 @@ tpm_quote(char * b64_nonce)
     }  
 
     if ((result = load_aik_tpm(tpm_context, 
-                srk_handle, &aik_handle)) != 0) {
+                srk_handle, &aik_handle)) != TSS_SUCCESS) {
         syslog(LOG_ERR, "xenquote Unable to load citrix aik");
         goto free_context;
     }
