@@ -26,6 +26,20 @@ def process_error(rc):
         raise Exception("Error: There is no TPM on this machine or it is not enabled in the BIOS")
     elif rc == '6':
         raise Exception("Error: The TPM is deactivated.  Please activate the TPM in the BIOS.")
+    elif rc == '-3':
+        raise Exception("Error: XenServer encountered a problem with TPM on this machine")
+    elif rc == '-4':
+        raise Exception("Error: XenServer could not read TPM certificate")
+    elif rc == '-5':
+        raise Exception("Error: XenServer could not parse TPM certificate")
+    elif rc == '-6':
+        raise Exception("Error: XenServer could not read config key from config file")
+    elif rc == '-7':
+        raise Exception("Error: XenServer could not read configuration file")
+    elif rc == '-8':
+        raise Exception("Error: XenServer could not load Attestation Key.")
+    elif rc == '-9':
+        raise Exception("Error: XenServer could not generate Attestation Key.")
     else:
         raise Exception("Error: XenServer encountered a problem with the TPM on this machine")
 
