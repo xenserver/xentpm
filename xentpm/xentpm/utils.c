@@ -143,7 +143,7 @@ int load_aik_tpm( TSS_HCONTEXT context,
     UINT32 aik_blob_len;
 
    
-    result = Tspi_Context_GetKeyByUUID(context, TSS_PS_TYPE_USER,
+    result = Tspi_Context_GetKeyByUUID(context, AIK_STORAGE_TYPE,
             aik_uuid, aik_handle);
     if (result != TSS_SUCCESS) {
         syslog(LOG_INFO, "Load_aik_tpm ..key not found \n "); 
