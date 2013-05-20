@@ -50,15 +50,15 @@ int take_ownership()
     TSS_FLAG srk_attributes;
     BYTE tpm_key[SHA_DIGEST_LENGTH];    
     
-    syslog(LOG_INFO, "Taking ownership of the TPM.\n");
     /* First check if the TPM is owned. 
      * iF it is not owned then xentpm needs to take ownership
      */
     if (tpm_owned()) {
         // TPM is already owned so nothing to do.
-        syslog(LOG_INFO, "TPM is already owned.\n");
         return TSS_SUCCESS;
     }
+    
+    syslog(LOG_INFO, "Taking ownership of the TPM.\n");
 
     if ((result = read_tpm_key(tpm_key, SHA_DIGEST_LENGTH)) != 0) {
         syslog(LOG_ERR, "TPM Key Not Found \n");
@@ -92,7 +92,7 @@ int take_ownership()
     }
 
     result = Tspi_Policy_SetSecret(srk_policy, TSS_SECRET_MODE_SHA1,
-            (UINT32)(sizeof(tpm_key)),(BYTE*)tpm_key);
+            (UINT32)(sizeof(tpm_key)), (BYTE*)tpm_key);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Error Setting SRK Password %s \n", 
 		Trspi_Error_String(result));

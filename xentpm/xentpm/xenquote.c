@@ -85,12 +85,13 @@ tpm_quote(char * b64_nonce)
     BYTE   nonce_hash[SHA_DIGEST_LENGTH];
     int	   i;
     int	   result;
+    int alloc_size;
 
-    syslog(LOG_INFO, "Request for TPM Quote Generation!\n");
+    syslog(LOG_ERR, "Request for TPM quote generation for nonce %s \n", b64_nonce);
 
     result = take_ownership();
     if (result) {
-        syslog(LOG_ERR, "Error 0x%X taking ownership of TPM.\n", result);
+        syslog(LOG_ERR, "tpm_quote Error 0x%X taking ownership of TPM.\n", result);
         goto out;
     }
     
@@ -146,12 +147,13 @@ tpm_quote(char * b64_nonce)
      *   3)uint32 QuoteSize       //  Quotes 
      *   4)BYTE *Quote (PCR Quote readable in Text)
      */
-    quote_buf = malloc((sizeof(UINT16) + mask_size + sizeof(UINT32) + 
-                    PCR_QUOTE_LEN * max_pcr));
+    alloc_size = sizeof(UINT16) + mask_size + sizeof(UINT32) + 
+                    PCR_QUOTE_LEN * max_pcr;
+    quote_buf = (BYTE*)malloc(alloc_size); 
     
     if (!quote_buf) {
-        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,
-            __LINE__);
+        syslog(LOG_ERR, "Unable to allocate memory %d , %s and %d \n",
+        alloc_size, __FILE__, __LINE__);
         result = XENTPM_E_INTERNAL;
         goto free_quote;
     }
@@ -237,10 +239,12 @@ tpm_quote(char * b64_nonce)
      *  onto the end of the quote buffer
      */
     quote_buf_len = marker - quote_buf;
-    quote_buf = realloc(quote_buf, quote_buf_len + valid.ulValidationDataLength);
+    alloc_size = quote_buf, quote_buf_len + valid.ulValidationDataLength;
+    quote_buf = realloc(quote_buf, alloc_size);
 
     if (!quote_buf) {
-        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",__FILE__,__LINE__);
+        syslog(LOG_ERR, "Unable to realloc memory for size %d at %s and %d \n",
+            alloc_size, __FILE__, __LINE__);
         result = XENTPM_E_INTERNAL; 
         goto free_context;
     }
@@ -250,7 +254,7 @@ tpm_quote(char * b64_nonce)
     quote_buf_len += valid.ulValidationDataLength;
 
     if ((result = print_base64(quote_buf,quote_buf_len)) != 0) {
-        syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
+        syslog(LOG_ERR, "Error in converting B64 %s and %d ", __FILE__, __LINE__);
         result = XENTPM_E_INTERNAL; 
         goto free_quote;
         
@@ -261,6 +265,7 @@ tpm_quote(char * b64_nonce)
 free_quote:
     free(quote_buf);
 free_context:
+    Tspi_Context_CloseObject(tpm_context, srk_policy);
     tpm_free_context(tpm_context, tpm_policy);
 out:    
     return result;

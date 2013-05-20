@@ -124,6 +124,7 @@ int tpm_challenge(char *b64_challenge)
     syslog(LOG_INFO, "XenTPM challange success!\n");
     
 free_context:
+    Tspi_Context_CloseObject(context, srk_policy);
     tpm_free_context(context, tpm_policy);
 out:
     return result;

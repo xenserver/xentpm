@@ -61,12 +61,11 @@ get_xen_rsa_modulus(char* b64_xen_cert, BYTE* CA_Key, unsigned int size)
         goto free_x509;
     }
 
-    //TODO log size as well
     modulus_len = BN_num_bytes(rsa->n);
     modulus_buffer = (BYTE*)malloc(modulus_len);
     if (!modulus_buffer) {
-        syslog(LOG_ERR, "Unable to allocate memory %s and %d \n",
-                __FILE__, __LINE__);
+        syslog(LOG_ERR, "Unable to allocate memory %d  at %s and %d \n",
+               modulus_len, __FILE__, __LINE__);
         goto free_x509; 
     }
     /* TODO:// Fill in the exact size 
@@ -209,6 +208,7 @@ int generate_aik(char* b64_xen_cert)
     result = register_aik_uuid(context, aik_handle);
     syslog(LOG_ERR, "xentpm --generate_aik exit ");
 free_context:  
+    Tspi_Context_CloseObject(context, srk_policy);
     tpm_free_context(context, tpm_policy);
 out:
     return result;
@@ -280,6 +280,7 @@ int get_aik_pem()
     RSA_free(aikPubKey);
 
 free_context:
+    Tspi_Context_CloseObject(context, srk_policy);
     tpm_free_context(context,tpm_policy);
 out:    
     return result;
@@ -337,6 +338,7 @@ int get_aik_tcpa()
     }
 
 free_context:
+    Tspi_Context_CloseObject(context, srk_policy);
     tpm_free_context(context,tpm_policy);
 out:    
     return result;

@@ -79,6 +79,7 @@ int get_endorsment_key()
 close_obj:
     Tspi_Context_CloseObject (context, pub_ek);
 free_context: 
+    Tspi_Context_CloseObject(context, srk_policy);
     tpm_free_context(context,tpm_policy);
 out:
     return result;
@@ -218,7 +219,8 @@ int get_endorsment_keycert()
     /* Read cert from chip in chunks */
     certbuf = malloc(certbuf_len);
     if (!certbuf) {
-        syslog(LOG_ERR, "Malloc failed in %s and %d ",__FILE__,__LINE__);
+        syslog(LOG_ERR, "Malloc failed %d , in %s and %d ", certbuf_len,
+            __FILE__,__LINE__);
         result = XENTPM_E_INTERNAL;
     }
 
@@ -240,12 +242,13 @@ int get_endorsment_keycert()
         ek_offset += blob_len;
     }
     if ((result = print_base64(certbuf, certbuf_len)) != 0) {
-        syslog(LOG_ERR, "Error in converting B64 %s and %d ",__FILE__,__LINE__);
+        syslog(LOG_ERR, "Error in converting B64 %s and %d ", __FILE__, __LINE__);
     }
     
 read_error:
     free(certbuf);
 free_context:
+    Tspi_Context_CloseObject(context, nv_policy);
     tpm_free_context(context, tpm_policy);
 out:
     return result;

@@ -23,11 +23,11 @@ int print_base64(void* data, UINT32 len)
     BIO_write(b64, data, len);
     BIO_flush(b64);
     BIO_get_mem_ptr(b64, &bptr);
-    char *b64Buff = (char*)malloc(bptr->length);
     
+    char *b64Buff = (char*)malloc(bptr->length);
     if (!b64Buff) {
-        syslog(LOG_ERR, "Error in memory allocation %s and %d ",__FILE__,
-            __LINE__);
+        syslog(LOG_ERR, "Error in memory allocation size %d at %s and %d ", 
+        bptr->length, __FILE__, __LINE__);
         return XENTPM_E_INTERNAL;
     } 
     memcpy(b64Buff, bptr->data, bptr->length-1);
@@ -139,10 +139,8 @@ int load_aik_tpm( TSS_HCONTEXT context,
 {
     int	result;
     TSS_UUID aik_uuid = CITRIX_UUID_AIK ;
-    BYTE   *aik_blob;
-    UINT32 aik_blob_len;
-
-   
+    //BYTE   *aik_blob;
+    //UINT32 aik_blob_len;
     result = Tspi_Context_GetKeyByUUID(context, AIK_STORAGE_TYPE,
             aik_uuid, aik_handle);
     if (result != TSS_SUCCESS) {
@@ -385,7 +383,15 @@ int tpm_create_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle, TSS_HKEY *sr
         goto error_free;
     }
 
-    result = Tspi_GetPolicyObject((*srk_handle), TSS_POLICY_USAGE, srk_policy); 
+   /*  result = Tspi_GetPolicyObject((*srk_handle), TSS_POLICY_USAGE, srk_policy); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_GetPolicyObject(SRK, TSS_POLICY_USAGE) \
+            failed with 0x%X %s", result, Trspi_Error_String(result));
+        goto error_free;
+    }
+    */
+    result = Tspi_Context_CreateObject((*context), TSS_OBJECT_TYPE_POLICY,
+        TSS_POLICY_USAGE, srk_policy);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_GetPolicyObject(SRK, TSS_POLICY_USAGE) \
             failed with 0x%X %s", result, Trspi_Error_String(result));
@@ -394,11 +400,17 @@ int tpm_create_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle, TSS_HKEY *sr
 
     result = Tspi_Policy_SetSecret(*srk_policy, TSS_SECRET_MODE_SHA1,
                 (UINT32)(sizeof(tpm_key)), (BYTE*)tpm_key);
-    
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Policy_SetSecret(SRK) failed with 0x%X %s", 
             result, Trspi_Error_String(result));
     }
+
+    result = Tspi_Policy_AssignToObject((*srk_policy), (*srk_handle)); 
+    if (result != TSS_SUCCESS) {
+        syslog(LOG_ERR, "Tspi_Policy_AssignToObject failed with 0x%X %s", 
+            result, Trspi_Error_String(result));
+    }
+
     /* Caller will free all */
     goto out; 
 error_free:
