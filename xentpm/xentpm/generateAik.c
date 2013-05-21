@@ -1,12 +1,40 @@
- /*      Publish AIK public key in PEM format and TCPA blob format
+/*
+ * Copyright (C) 2006-2009 Citrix Systems Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation; version 2.1 only. with the special
+ * exception on linking described in file LICENSE.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
  */
 
+/*
+ * Copyright (c) 2009 Hal Finney
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ * 
+ */
+
+/*  Publish AIK public key in PEM format and TCPA blob format
+ */
 #include "xentpm.h"
 #include <unistd.h>
 #include <limits.h>
 
 /* Get Xen public Key from host certificate
- * */
+ */
 static int
 get_xen_rsa_modulus(char* b64_xen_cert, BYTE* CA_Key, unsigned int size)
 {

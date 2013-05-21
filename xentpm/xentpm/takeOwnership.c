@@ -1,9 +1,23 @@
 #include "xentpm.h"
 
 /*
-* Read the /sys/class/misc/tpm0/device/owned file.
-* If it contains a 0, then the TPM is not owned.
-* If it contains a 1, then the TPM is owned.
+ * Copyright (C) 2006-2009 Citrix Systems Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation; version 2.1 only. with the special
+ * exception on linking described in file LICENSE.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ */
+
+/*
+ * Read the /sys/class/misc/tpm0/device/owned file.
+ * If it contains a 0, then the TPM is not owned.
+ * If it contains a 1, then the TPM is owned.
 */
 int tpm_owned()
 {
