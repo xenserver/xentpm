@@ -38,6 +38,8 @@ clean:
 	rm -rf BUILD
 	rm -rf SOURCES
 	rm -rf $(SRCV)
+	rm -rf output
+	rm -rf obj
 
 .PHONY: sources
 sources:
