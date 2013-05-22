@@ -407,7 +407,7 @@ int tpm_create_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle, TSS_HKEY *sr
     result = Tspi_Context_CreateObject((*context), TSS_OBJECT_TYPE_POLICY,
         TSS_POLICY_USAGE, srk_policy);
     if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_GetPolicyObject(SRK, TSS_POLICY_USAGE) \
+        syslog(LOG_ERR, "Tspi_CreatObject(SRK, TSS_POLICY_USAGE) \
             failed with 0x%X %s", result, Trspi_Error_String(result));
         goto error_free;
     }

@@ -19,27 +19,34 @@ xml_schema     = '<?xml version="1.0" encoding="UTF-8"?> \
    <xentxt:TPM_Attestation_KEY_TCPA>MA==</xentxt:TPM_Attestation_KEY_TCPA> \
 </xentxt:xentxtdata>'
 
+# error codes
+
+XENTPM_E_INTERNAL      =     -3
+XENTPM_E_CERT          =     -4
+XENTPM_E_CERT_PARSE    =     -5
+XENTPM_E_CONFIG_KEY    =     -6
+XENTPM_E_CONFIG_FILE   =     -7
+TPM_E_DEACTIVATED      =      6
+TPM_E_DISABLED         =      7
+
+
 def process_error(rc):
     if rc == '1':
         raise Exception("Error: XenServer does not own the TPM. Please clear the TPM in the BIOS")
-    elif rc == '12305':
+    elif rc == TPM_E_DISABLED:
         raise Exception("Error: There is no TPM on this machine or it is not enabled in the BIOS")
-    elif rc == '6':
+    elif rc == TPM_E_DISABLED:
         raise Exception("Error: The TPM is deactivated.  Please activate the TPM in the BIOS.")
-    elif rc == '-3':
+    elif rc == XENTPM_E_INTERNAL:
         raise Exception("Error: XenServer encountered a problem with TPM on this machine")
-    elif rc == '-4':
+    elif rc == XENTPM_E_CERT:
         raise Exception("Error: XenServer could not read TPM certificate")
-    elif rc == '-5':
+    elif rc == XENTPM_E_CERT_PARSE:
         raise Exception("Error: XenServer could not parse TPM certificate")
-    elif rc == '-6':
+    elif rc == XENTPM_E_CONFIG_KEY:
         raise Exception("Error: XenServer could not read config key from config file")
-    elif rc == '-7':
+    elif rc == XENTPM_E_CONFIG_FILE:
         raise Exception("Error: XenServer could not read configuration file")
-    elif rc == '-8':
-        raise Exception("Error: XenServer could not load Attestation Key.")
-    elif rc == '-9':
-        raise Exception("Error: XenServer could not generate Attestation Key.")
     else:
         raise Exception("Error: XenServer encountered a problem with the TPM on this machine")
 
