@@ -28,7 +28,8 @@ $(RPM_BUILT_COOKIE):
 	[ -d $(SRPMS_DIR) ] || mkdir -p $(SRPMS_DIR)
 	[ -d $(RPMROOT)/BUILD ] || mkdir -p $(RPMROOT)/BUILD
 	[ -d $(RPMROOT)/SOURCES ] || mkdir -p $(RPMROOT)/SOURCES
-	cp -r $(NAME) $(SRCV)
+	[ -d $(RPMROOT)/$(SRCV) ] || mkdir -p $(RPMROOT)/$(SRCV)
+	cp -r $(RPMROOT)/$(NAME)/* $(RPMROOT)/$(SRCV)
 	tar -czf SOURCES/$(SRC) $(SRCV)
 	cp $(SPEC) SOURCES
 	$(RPMBUILD) -ba --define "version $(COMPONENT_VERSION)"  --define "release $(RELEASE)" --define "_rpmdir $(RPMS_DIR)" --define "_sourcedir $(RPMROOT)/SOURCES" --define "_srcrpmdir $(SRPMS_DIR)" --define "_builddir $(RPMROOT)/BUILD" --define "trousers_dir $(RPMROOT)/trousers" SOURCES/$(SPEC)
