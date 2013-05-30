@@ -26,12 +26,12 @@ XENTPM_E_CERT          =     -4
 XENTPM_E_CERT_PARSE    =     -5
 XENTPM_E_CONFIG_KEY    =     -6
 XENTPM_E_CONFIG_FILE   =     -7
+TPM_E_AUTHFAIL         =      1
 TPM_E_DEACTIVATED      =      6
 TPM_E_DISABLED         =      7
 
-
 def process_error(rc):
-    if rc == '1':
+    if rc == TPM_E_AUTHFAIL:
         raise Exception("Error: XenServer does not own the TPM. Please clear the TPM in the BIOS")
     elif rc == TPM_E_DISABLED:
         raise Exception("Error: There is no TPM on this machine or it is not enabled in the BIOS")

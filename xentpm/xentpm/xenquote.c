@@ -47,8 +47,8 @@
  * replay of old Quote output. If no file is specified the challenge is zeros.
  */
 
-#include "xentpm.h" 
 #include <arpa/inet.h>
+#include "xentpm.h" 
 
 #define PCR_QUOTE_LEN (TCPA_SHA1_160_HASH_LEN)
 #define BITS_PER_BYTE CHAR_BIT
@@ -246,7 +246,7 @@ tpm_quote(char * b64_nonce)
     /* Fill in the PCR buffer */
 
     marker = quote_buf + sizeof(UINT16) + mask_size; /* no of PCRs */
-    *(UINT32 *)marker = htonl (PCR_QUOTE_LEN*max_pcr); /* set the quote size */
+    *(UINT32 *)marker = htonl(PCR_QUOTE_LEN*max_pcr); /* set the quote size */
     marker += sizeof(UINT32);
     for (i = 0;i < max_pcr; i++) {
         result = Tspi_PcrComposite_GetPcrValue(pcr_handle, i, &api_buf_len,
@@ -265,8 +265,7 @@ tpm_quote(char * b64_nonce)
      *  onto the end of the quote buffer
      */
     quote_buf_len = marker - quote_buf;
-    alloc_size = quote_buf, quote_buf_len + valid.ulValidationDataLength;
-    
+    alloc_size = quote_buf_len + valid.ulValidationDataLength;
     quote_buf = realloc(quote_buf, alloc_size);
     if (!quote_buf) {
         syslog(LOG_ERR, "Unable to realloc memory for size %d at %s and %d \n",

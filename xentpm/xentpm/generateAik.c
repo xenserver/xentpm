@@ -103,7 +103,7 @@ get_xen_rsa_modulus(char* b64_xen_cert, BYTE* CA_Key, unsigned int size)
         syslog(LOG_INFO, "Partial PCA Key, Xen Key size is %x,\n", modulus_len);
         syslog(LOG_INFO, "Xen Cert %s\n", b64_xen_cert);
         memcpy(CA_Key, modulus_buffer, modulus_len);
-        memset(CA_Key+ modulus_len, 0xff, size - modulus_len); // check diff with ff vs 00
+        memset(CA_Key+ modulus_len, 0xff, size - modulus_len);
     }
     else if (modulus_len > size) {
         syslog(LOG_INFO, "Partial Xen Key for CA, Xen key size is %x,\n", modulus_len);
@@ -135,7 +135,7 @@ int generate_aik(char* b64_xen_cert)
     TSS_HKEY pca_handle;
     TSS_HPOLICY	tpm_policy;
     TSS_HPOLICY	srk_policy;
-    BYTE CA_Key[TSS_DAA_LENGTH_N]; // 2048 bits or 256 Bytes 
+    BYTE CA_Key[TSS_DAA_LENGTH_N]; /* 2048 bits or 256 Bytes */ 
     BYTE* tcpablob;
     UINT32 tcpablob_len;
     BYTE*  attrblob;
