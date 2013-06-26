@@ -83,7 +83,7 @@ int take_ownership()
     BYTE tpm_key[SHA_DIGEST_LENGTH];    
     
     /* First check if the TPM is owned. 
-     * iF it is not owned then xentpm needs to take ownership
+     * If it is not owned then xentpm needs to take ownership
      */
     if (tpm_owned()) {
         // TPM is already owned so nothing to do.
@@ -142,7 +142,8 @@ int take_ownership()
     }
 
     syslog(LOG_INFO, "XenServer now owns the TPM.\n");
-    /*Unregister AIK if present*/
+
+    /* Unregister AIK if present from a pervious ownership */
     unregister_aik_uuid(context);
 
 free_context:  

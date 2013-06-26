@@ -50,7 +50,6 @@
  * Produce a PCR quote using an AIK.
  *
  * All available PCR's are masked
- * Nonce is fixed at 0 for now.
  *
  * The format of the quote file output is as follows:
  * 2 bytes of PCR bitmask length (big-endian)
@@ -61,9 +60,6 @@
  *
  * Note that the 1st portion is the serialized TPM_PCR_SELECTION that gets hashed.
  *
- * Takes an optional challenge file to be hashed as the externalData input
- * to the Quote. This would typically be supplied by the challenger to prevent
- * replay of old Quote output. If no file is specified the challenge is zeros.
  */
 
 #include <arpa/inet.h>
@@ -74,8 +70,7 @@
 #define SET_BIT(buf, i)  ((((BYTE*)buf)[i/BITS_PER_BYTE] |= 1 << (i%BITS_PER_BYTE)))
 #define ROUNDUP_BYTE(x)  ((x + BITS_PER_BYTE - 1 ) / BITS_PER_BYTE)
 
-/* return nonce sha1 from user provided nonce 
-*/
+/* return nonce sha1 from user provided nonce */
 static int 
 get_nonce_sha1(char* b64_nonce, BYTE * nonce_hash, TSS_HCONTEXT tpm_context)
 {
@@ -226,7 +221,7 @@ tpm_quote(char * b64_nonce)
         UINT32       ulExternalDataLength; //nonce len
         BYTE*        rgbExternalData; // nonce data
         UINT32       ulDataLength; //sizeof quote_info
-         BYTE*     rgbData; //tpm_quote_info
+        BYTE*     rgbData; //tpm_quote_info
         UINT32    ulValidationDataLength;
         BYTE*     rgbValidationData; // signature of the quote_info_structure
     } TSS_VALIDATION;
@@ -280,8 +275,8 @@ tpm_quote(char * b64_nonce)
     }
 
     
-    /*  appned on the rgbValidationData (quote info singature)
-     *  onto the end of the quote buffer
+    /* Appned on the rgbValidationData (quote info singature)
+     * onto the end of the quote buffer
      */
     quote_buf_len = marker - quote_buf;
     alloc_size = quote_buf_len + valid.ulValidationDataLength;
@@ -301,7 +296,6 @@ tpm_quote(char * b64_nonce)
         syslog(LOG_ERR, "Error in converting B64 %s and %d ", __FILE__, __LINE__);
         result = XENTPM_E_INTERNAL; 
         goto free_quote;
-        
     }
 
     syslog(LOG_INFO, "Generate TPM Quote Success!\n");

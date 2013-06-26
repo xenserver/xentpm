@@ -131,9 +131,7 @@ out:
     return result;
 }
 
-/* Get Endoresement Key certificate  
- * */
-
+/* Get Endoresement Key certificate  */
 int get_endorsment_keycert()
 {
     TSS_HCONTEXT context;

@@ -52,8 +52,7 @@
 #include <unistd.h>
 #include <limits.h>
 
-/* Get Xen public Key from host certificate
- */
+/* Get XenServer public Key from host certificate */
 static int
 get_xen_rsa_modulus(char* b64_xen_cert, BYTE* CA_Key, unsigned int size)
 {
@@ -115,8 +114,7 @@ get_xen_rsa_modulus(char* b64_xen_cert, BYTE* CA_Key, unsigned int size)
                modulus_len, __FILE__, __LINE__);
         goto free_x509; 
     }
-    /* TODO:// Fill in the exact size 
-     **/
+
     modulus_len = BN_bn2bin(rsa->n, modulus_buffer);
     if (modulus_len < size) {
         syslog(LOG_INFO, "Partial PCA Key, Xen Key size is %x,\n", modulus_len);
@@ -189,7 +187,7 @@ int generate_aik(char* b64_xen_cert)
     }     
 
     /* Privacy CA key 
-     * use XenServer Public Key 
+     * Use XenServer Public Key 
      */
     result = Tspi_Context_CreateObject(context,
             TSS_OBJECT_TYPE_RSAKEY,

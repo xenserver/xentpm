@@ -45,14 +45,6 @@
  * 
  */
 
-/*
- * Third step in proving an AIK is valid without using a Privacy CA.
- *
- * Reads AIK blob file and challenge file from challenger. Decrypts
- * encrypted data and outputs to a file, which should be sent back to
- * challenger. Successful decryption proves that it is a real AIK.
- */
-
 #include <arpa/inet.h>
 #include "xentpm.h"
 

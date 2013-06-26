@@ -37,13 +37,12 @@
 
 #define AIK_STORAGE_TYPE TSS_PS_TYPE_SYSTEM
 
-/* Internal function */
+/* Internal functions */
 
 static int get_key_bytes(unsigned char * md, unsigned char * buf);
 static char get_val(char c);
 
 /* Base64 conversion */
-
 int print_base64(void* data, UINT32 len)
 {
 
@@ -88,8 +87,7 @@ out:
     return result;
 }
 
-/* convert sha1 hex string to sha1 bytes
-*/
+/* convert sha1 hex string to sha1 bytes */
 static int get_key_bytes(unsigned char * md, unsigned char * buf)
 {
     int i;
@@ -166,13 +164,12 @@ int register_aik_uuid(TSS_HCONTEXT context, TSS_HKEY aik_handle)
     return result;
 }
 
+/* Load the AIK into the TPM.  The AIK is stored in the trousers storage file */
 int load_aik_tpm( TSS_HCONTEXT context,
         TSS_HKEY srk_handle, TSS_HKEY* aik_handle)
 {
     int	result;
     TSS_UUID aik_uuid = CITRIX_UUID_AIK ;
-    //BYTE   *aik_blob;
-    //UINT32 aik_blob_len;
     result = Tspi_Context_GetKeyByUUID(context, AIK_STORAGE_TYPE,
             aik_uuid, aik_handle);
     if (result != TSS_SUCCESS) {
@@ -181,24 +178,7 @@ int load_aik_tpm( TSS_HCONTEXT context,
     }
     result = Tspi_Key_LoadKey((*aik_handle), srk_handle);
 
-    /*result = Tspi_GetAttribData( *(aik_handle), TSS_TSPATTRIB_KEY_BLOB,
-            TSS_TSPATTRIB_KEYBLOB_BLOB,
-            &aik_blob_len, &aik_blob);
-
-    if ( result != TSS_SUCCESS ) {
-        syslog(LOG_ERR, "Load_aik_tpm Tspi_GetAttribData failed with 0x%X %s", 
-                result, Trspi_Error_String(result));
-        return result;
-    }
-
-    result = Tspi_Context_LoadKeyByBlob(context, srk_handle, aik_blob_len,
-            aik_blob, aik_handle);
-  
-
-    result = Tspi_Context_LoadKeyByUUID(context, AIK_STORAGE_TYPE,
-            aik_uuid, aik_handle);
-   */
-  if (result != TSS_SUCCESS) {
+    if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_Context_LoadKeyByBlob(AIK) failed with 0x%X %s", 
                 result, Trspi_Error_String(result));
         result = XENTPM_E_CORRUPT_AIK; // unable to load aik 
@@ -207,7 +187,6 @@ int load_aik_tpm( TSS_HCONTEXT context,
 }
 
 /* base64 decode 'in' string */
-
 BYTE* base64_decode(char *in, int * outlen)
 {
     BIO *bmem, *b64;
@@ -318,7 +297,6 @@ err:
  * on error close all object and return fail
  * on sucess return context and policy
  * */
-
 int  tpm_init_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle,
             TSS_HPOLICY *tpm_policy) 
 {
@@ -406,7 +384,6 @@ int tpm_create_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle, TSS_HKEY *sr
         goto out;
     }
 
-
     result = Tspi_Context_LoadKeyByUUID((*context),
             TSS_PS_TYPE_SYSTEM, SRK_UUID, srk_handle);
     if (result != TSS_SUCCESS) {
@@ -415,13 +392,6 @@ int tpm_create_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle, TSS_HKEY *sr
         goto error_free;
     }
 
-   /*  result = Tspi_GetPolicyObject((*srk_handle), TSS_POLICY_USAGE, srk_policy); 
-    if (result != TSS_SUCCESS) {
-        syslog(LOG_ERR, "Tspi_GetPolicyObject(SRK, TSS_POLICY_USAGE) \
-            failed with 0x%X %s", result, Trspi_Error_String(result));
-        goto error_free;
-    }
-    */
     result = Tspi_Context_CreateObject((*context), TSS_OBJECT_TYPE_POLICY,
         TSS_POLICY_USAGE, srk_policy);
     if (result != TSS_SUCCESS) {
