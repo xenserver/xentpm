@@ -2,7 +2,7 @@ Summary: XenTPMServer RPM
 Name: xentpm
 Version: %{?version}%{!?version:1.0}
 Release: %{?release}%{!?release:1}
-License: CPL
+License: BSD
 Group: System/Security
 Source: %{name}-%{version}.tar.gz
 URL: http://www.citrix.com
