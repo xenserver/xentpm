@@ -54,8 +54,8 @@
 /*  XenTPM internal function
  */
 
-#define CITRIX_UUID_AIK  {'c','i','t','r','i','x', 'u', 'u', 'i', 'd', 0}
-
+#define CITRIX_UUID_AIK  {'c','i','t','r','i', {'x', 'u', 'u', 'i', 'd', 0}}
+#define CITRIX_LABEL  "citrix"
 /* XenTPM Client calls via Python */
 
 int generate_aik( char* b64_xen_cert); 
@@ -86,8 +86,7 @@ int  tpm_init_context(TSS_HCONTEXT *context, TSS_HTPM *tpm_handle,
             TSS_HPOLICY *tpm_policy); 
 
 
-/* Aik load/register/unregister in Trousers
- * */
+/* Aik load/register/unregister in Trousers */
 int load_aik_tpm(TSS_HCONTEXT context,
         TSS_HKEY srk_handle, TSS_HKEY* aik_handle);
 int unregister_aik_uuid(TSS_HCONTEXT context);

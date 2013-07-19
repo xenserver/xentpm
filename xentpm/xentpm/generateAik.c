@@ -181,8 +181,7 @@ int generate_aik(char* b64_xen_cert)
     
     if (result == TSS_SUCCESS) {
         /* Key found */               
-        syslog(LOG_INFO, "Tspi_Context_GetKeyByUUID found Key,\ 
-            Not generating New AIK "); 
+        syslog(LOG_INFO, "Tspi_Context_GetKeyByUUID found Key, Not generating New AIK "); 
         goto free_context;        
     }     
 
@@ -230,7 +229,7 @@ int generate_aik(char* b64_xen_cert)
 
     /* Generate new AIK  */
     result = Tspi_TPM_CollateIdentityRequest(tpm_handle, srk_handle, pca_handle, 
-            strlen("citrix"), "citrix", aik_handle, TSS_ALG_AES, &tcpablob_len, 
+            strlen(CITRIX_LABEL), (BYTE*)CITRIX_LABEL, aik_handle, TSS_ALG_AES, &tcpablob_len, 
             &tcpablob);
     if (result != TSS_SUCCESS) {
         syslog(LOG_ERR, "Tspi_CollateIdentityRequest failed with 0x%X %s", 

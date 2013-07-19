@@ -52,7 +52,7 @@ int print_base64(void* data, UINT32 len)
     bmem = BIO_new(BIO_s_mem());
     b64 = BIO_push(b64, bmem);
     BIO_write(b64, data, len);
-    BIO_flush(b64);
+    (void) BIO_flush(b64);
     BIO_get_mem_ptr(b64, &bptr);
     
     char *b64Buff = (char*)malloc(bptr->length);
