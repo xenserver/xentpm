@@ -1,13 +1,27 @@
+ifdef B_BASE
+
+# Building under the XenServer integrated build system
+#USE_BRANDING := yes
+#IMPORT_BRANDING := yes
+include $(B_BASE)/common.mk
+include $(B_BASE)/rpmbuild.mk
+REPONAME := tboot
+REPO := $(call hg_loc,$(REPONAME))
+
+else
+
 include ../common/env.mk
 include ../common/rpmenv.mk
 include ../common/versioning.mk
+
+endif
 
 VERSION = $(PRODUCT_VERSION)
 RELEASE = 1
 
 RPMROOT := $(shell pwd)
-RPMS_DIR = $(RPMROOT)/output/RPMS
-SRPMS_DIR = $(RPMROOT)/output/SRPMS
+RPMS_DIR = $(MY_OUTPUT_DIR)/RPMS
+SRPMS_DIR = $(MY_OUTPUT_DIR)/SRPMS
 
 NAME := xentpm
 COMPONENT_VERSION := 1.0.0

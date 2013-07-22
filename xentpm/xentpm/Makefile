@@ -1,6 +1,6 @@
 CC=gcc
-CFLAGS+= -g -Itrousers/include -Wall -m32 
-LIBS+=  -Ltrousers/lib -lssl -ltspi
+CFLAGS+= -g  -Wall -m32 
+LIBS+=  -lssl -ltspi
 BASE= $(addsuffix /opt/xensource/tpm, $(prefix))
 PLUGIN= $(addsuffix /etc/xapi.d/plugins/, $(prefix))
 
