@@ -7,19 +7,24 @@ include $(B_BASE)/common.mk
 include $(B_BASE)/rpmbuild.mk
 REPONAME := tboot
 REPO := $(call hg_loc,$(REPONAME))
-
 else
-
-include ../common/env.mk
-include ../common/rpmenv.mk
-include ../common/versioning.mk
-
+-include ../common/env.mk 
+-include ../common/rpmenv.mk 
+-include ../common/versioning.mk 
 endif
 
 VERSION = $(PRODUCT_VERSION)
 RELEASE = 1
 
 RPMROOT := $(shell pwd)
+
+ifndef MY_OUTPUT_DIR
+MY_OUTPUT_DIR := $(RPMROOT)
+endif
+ifndef RPMBUILD
+RPMBUILD := rpmbuild 
+endif
+
 RPMS_DIR = $(MY_OUTPUT_DIR)/RPMS
 SRPMS_DIR = $(MY_OUTPUT_DIR)/SRPMS
 
