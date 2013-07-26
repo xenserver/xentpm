@@ -1,0 +1,62 @@
+BUILD REQUIREMENTS
+
+There are prerequisites for building a xentpm
+release for XenServer. All the following must be installed, either by
+visiting the project webpage or installing a pre-built package
+provided by your OS distributor.  These install notes assume a 
+CentOS 5.7 or similar distribution.  These instructions will show you 
+how to build the 3 components needed to enable measured boot on XenServer.
+
+* tboot
+* trousers
+* xentpm
+
+Packages needed to build:
+
+* 'Development Tools' for gcc, make, etc.
+* RPM build
+* openssl-devel
+* gtk+
+
+
+BUILDING trousers
+
+  Download trousers 0.3.10 or later from http://sourceforge.net/projects/trousers.
+
+1. $ wget http://sourceforge.net/projects/trousers/files/trousers/0.3.10/trousers-0.3.10.tar.gz
+2. $ tar zxvf trousers-0.3.10.tar.gz
+3. $ cd trousers-0.3.10
+4. $ sh bootstrap.sh
+5. $ ./configure
+6. $ cd ..
+7. $ tar zcvf /usr/src/redhat/SOURCES/trousers-0.3.10.tar.gz trousers-0.3.10/*
+8. $ rpmbuild -bb trousers-0.3.10/dist/trousers.spc
+ 
+  This will produce a /usr/src/redhat/RPMS/i386/trousers-0.3.10-1.i386.rpm
+  This will produce a /usr/src/redhat/RPMS/i386/trousers-devel-0.3.10-1.i386.rpm
+
+BUILDING tboot
+
+  Download tboot 1.7.3 from http://sourceforge.net/projects/tboot.
+
+1. $ wget http://sourceforge.net/projects/tboot/files/tboot/tboot-1.7.3.tar.gz
+2. $ tar zxvf tboot-1.7.3.tar.gz
+3. $ cd tboot-1.7.3
+4. $ make build-tboot
+
+  This will produce a tboot-1.7.3/tboot/tboot.gz file
+
+BUILDING xentpm
+
+Follow these steps to build an RPM.
+
+1. Install the trousers-0.3.10-1.i386.rpm and trousers-devel-0.3.10-1.i386.rpm RPM file created in the step "BUILDING trousers prerequisite"
+2. Clone the xentpm git repository to github.com/XenServer
+3. make
+
+  This will produce a ~/RPMS/i386/xentpm-1.0.0-1.i386.rpm
+
+INSTALLATION
+
+The following instructions will show you how to setup your XenServer machine to 
+do a measured boot and expose the APIs for clients.
