@@ -7,7 +7,8 @@ Group: System/Security
 Source: %{name}-%{version}.tar.gz
 URL: http://www.citrix.com
 Vendor: @COMPANY_NAME_LEGAL@
-Requires: trousers
+Requires: trousers, xapi-core
+BuildRequires: trousers, trousers-devel
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 
 %define  debug_package %{nil}
