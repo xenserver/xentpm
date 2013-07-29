@@ -13,8 +13,7 @@ how to build the 3 components needed to enable measured boot on XenServer.
 
 Packages needed to build:
 
-* 'Development Tools' for gcc, make, etc.
-* RPM build
+* 'Development Tools' for gcc, make, rpmbuild, etc.
 * openssl-devel
 * gtk+
 
@@ -60,3 +59,6 @@ INSTALLATION
 
 The following instructions will show you how to setup your XenServer machine to 
 do a measured boot and expose the APIs for clients.
+
+1. On XenServer machines install the xenserver-meausred-boot.iso supplemental pack
+2. Replace the xentpm package with the one built above.
